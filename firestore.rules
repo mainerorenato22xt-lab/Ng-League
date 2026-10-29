@@ -9,7 +9,7 @@ service cloud.firestore {
         && request.auth.token.email in ['mainerorenato22xt@gmail.com'];
     }
 
-    // Reglas del presupuesto, mercado y draft: todos leen, solo el organizador escribe
+    // Reglas del presupuesto, mercado, equipos y fichajes: todos leen, solo el organizador escribe
     match /liga/{doc} {
       allow read: if true;
       allow write: if admin();
@@ -31,7 +31,7 @@ service cloud.firestore {
       allow write: if signed() && request.auth.uid == u;
     }
 
-    // Resultados, historias y elecciones del draft: cualquier participante con sesión
+    // Resultados, historias e historias: cualquier participante con sesión
     match /resultados/{doc} {
       allow read: if true;
       allow write: if signed();
@@ -40,11 +40,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if signed();
     }
-    match /draftpicks/{doc} {
+    // Fichajes entre temporadas: ofertas y ventas de cada director técnico
+    match /traspasos/{doc} {
       allow read: if true;
-      allow create: if signed();
-      allow update: if admin();
-      allow delete: if admin();
+      allow write: if signed();
     }
 
     // Borrador privado de cada persona
