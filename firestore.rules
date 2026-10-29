@@ -46,6 +46,19 @@ service cloud.firestore {
       allow write: if signed();
     }
 
+    // Red NG: cada director técnico publica solo en nombre de su equipo
+    match /noticias/{id} {
+      allow read: if true;
+      allow create: if signed()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.text.size() <= 500
+        && exists(/databases/$(database)/documents/claims/$(request.auth.uid))
+        && get(/databases/$(database)/documents/claims/$(request.auth.uid)).data.team == request.resource.data.team;
+      allow update: if signed()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']);
+      allow delete: if signed() && (resource.data.uid == request.auth.uid || admin());
+    }
+
     // Borrador privado de cada persona
     match /usuarios/{u}/{document=**} {
       allow read, write: if signed() && request.auth.uid == u;

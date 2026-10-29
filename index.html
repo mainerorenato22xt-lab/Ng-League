@@ -361,6 +361,27 @@ h1{font-family:var(--fd);font-style:italic;text-transform:uppercase;font-size:cl
 .ofrow{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0}.ofrow small{display:block;color:var(--muted);font-size:12.5px}.oact{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .offerbtn{width:auto;padding:0 10px;font-size:12px;font-weight:700;white-space:nowrap}
 .mini tr.hid td{opacity:.5}.addteam{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end}@media (max-width:700px){.addteam{grid-template-columns:1fr}}
+
+.match .mt small.frm{display:flex;gap:3px;margin-top:4px;justify-content:flex-end}.match .away small.frm{justify-content:flex-start}
+@media (max-width:620px){.match .mt small.frm,.match .away small.frm{justify-content:center}}
+.frm i{font-style:normal;font-size:10.5px;font-weight:800;width:17px;height:17px;border-radius:4px;display:grid;place-items:center;background:var(--low-soft);color:var(--low)}
+.frm i.fG{background:var(--ok-soft);color:var(--ok)}.frm i.fP{background:var(--gold-soft);color:var(--warn)}
+.odds{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:2px}
+.od{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12.5px}
+.od em{font-style:normal;color:var(--muted);font-weight:600}.od b{font-variant-numeric:tabular-nums;font-size:14px}
+.od.fav{border-color:var(--accent)}.od.fav b{color:var(--accent)}.od.hit{background:var(--ok-soft);border-color:var(--ok)}.od.hit b{color:var(--ok)}
+.composer .cmphead{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:10px;font-weight:700}
+.chips{display:flex;gap:8px;flex-wrap:wrap}.tab[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.fimgp{position:relative;margin-top:10px;display:inline-block}.fimgp img{max-height:160px;border-radius:8px;display:block}.fimgp .close{position:absolute;top:6px;right:6px;background:var(--surface)}
+.feedbar{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:18px 0 6px}
+.feed{display:flex;flex-direction:column;gap:12px;margin-top:8px;max-width:680px}
+.post{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.post header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.post header .close{margin-left:auto}.post .pt{font-weight:700}
+.ptx{margin:10px 0 0;line-height:1.5;overflow-wrap:anywhere}.pimg{width:100%;max-height:420px;object-fit:cover;border-radius:10px;margin-top:10px;display:block}
+.post footer{margin-top:10px}.like{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--line);color:var(--muted);border-radius:99px;padding:5px 12px;cursor:pointer;font:inherit;font-size:13px;font-weight:600}
+.like.on{color:var(--accent);border-color:var(--accent)}.like:active{transform:scale(.94)}
+@media (max-width:620px){.odds{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:no-preference){.like{transition:color .15s,border-color .15s,transform .15s}.enter .post{animation:rise .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*45ms)}}
 </style>
 </head>
 <body>
@@ -372,6 +393,7 @@ h1{font-family:var(--fd);font-style:italic;text-transform:uppercase;font-size:cl
     <button class="navb" type="button" data-v="sq" aria-pressed="false">Mi plantilla <span class="count" id="sqn"></span></button>
     <button class="navb" type="button" data-v="teams" aria-pressed="false">Plantillas</button>
     <button class="navb" type="button" data-v="liga" aria-pressed="false">Liga</button>
+    <button class="navb" type="button" data-v="feed" aria-pressed="false">Red</button>
     <button class="navb" type="button" data-v="hist" aria-pressed="false">Historia</button>
 
   </nav>
@@ -496,6 +518,11 @@ h1{font-family:var(--fd);font-style:italic;text-transform:uppercase;font-size:cl
 <main class="wrap" id="historyview" hidden>
   <div><h1>Historia</h1><p class="sub">El palmarés de la NG League y la historia de cada club. El director técnico de cada equipo puede escribir la suya.</p></div>
   <div id="histbody"></div>
+</main>
+
+<main class="wrap" id="feedview" hidden>
+  <div><h1>Red NG</h1><p class="sub">Las novedades de cada club: noticias, fichajes y lo que quiera contar su director técnico.</p></div>
+  <div id="feedbody"></div>
 </main>
 
 <div class="tray" id="tray" hidden></div>
@@ -942,11 +969,11 @@ function cleanTeams(d){
   base.forEach(function(b){if(!seen[b.id])out.push(b)});
   return out.sort(function(a,b){return a.id-b.id})}
 function refreshTeams(){ACT=TLIST.filter(function(x){return x.active}).map(function(x){return x.id});NT=ACT.length;FIX=buildFixture()}
-var LG={hist:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{}},market:{closed:false,deadline:null}};
+var LG={hist:{},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{}},market:{closed:false,deadline:null}};
 var names={},nameKey="",teamOwner={},myTeam=0,taken={},claimLost=false;
-var claimsCol=null,squadsCol=null,resCol=null,trCol=null,pubRef=null,mktRef=null,fichRef=null,teamsRef=null;
+var postsCol=null,claimsCol=null,squadsCol=null,resCol=null,trCol=null,pubRef=null,mktRef=null,fichRef=null,teamsRef=null;
 var histCol=null,TITLES={3:3,2:2,1:1,5:1},LAST=5,FOUNDED={2:1911,3:1918,5:1968,8:1911,9:1990},ligaTab="tabla",selRound=0,cmpIds=[];
-var VIEWS={hist:"historyview",home:"homeview",db:"dbview",sq:"squad",teams:"teamsview",liga:"ligaview"};
+var VIEWS={feed:"feedview",hist:"historyview",home:"homeview",db:"dbview",sq:"squad",teams:"teamsview",liga:"ligaview"};
 function dtName(u){return u?(names[u]||"Director técnico"):"Sin director técnico"}
 function cleanMarket(d){var dl=+(d&&d.deadline);return{closed:!!(d&&d.closed),deadline:dl>0?dl:null}}
 
@@ -1011,26 +1038,26 @@ function changed(){clearTimeout(chT);chT=setTimeout(function(){
   var ids=Object.keys(LG.claims).sort().join(",");
   if(ids!==nameKey&&BK){nameKey=ids;BK.profiles(Object.keys(LG.claims)).then(function(ps){Object.keys(ps).forEach(function(id){names[id]=(ps[id]&&ps[id].name)||names[id]||""});renderLeague()}).catch(function(){})}
   applyIncoming();renderLeague();renderSquad();run()},40)}
-function renderLeague(){updateMbar();renderHome();renderHist();renderTeamBox();renderFichBox();renderTeams();renderLiga();updateAccTeam();renderTray()}
+function renderLeague(){updateMbar();renderHome();renderHist();renderFeed();renderTeamBox();renderFichBox();renderTeams();renderLiga();updateAccTeam();renderTray()}
 function updateAccTeam(){var e=$("accteam");if(e)e.textContent=myTeam?"Diriges a "+teamName(myTeam)+".":(ref?"Aún no elegiste equipo.":"")}
 function startLeague(db){
   claimsCol=db.collection("claims");squadsCol=db.collection("plantillas");resCol=db.collection("resultados");trCol=db.collection("traspasos");
   mktRef=db.doc("liga/mercado");fichRef=db.doc("liga/fichajes");teamsRef=db.doc("liga/equipos");
   var err=function(){},col=function(c,key){c.onSnapshot(function(s){var o={};s.docs.forEach(function(d){o[d.id]=d.data()});LG[key]=o;changed()},err)};
-  col(claimsCol,"claims");col(squadsCol,"squads");col(resCol,"results");col(trCol,"tr");col(db.collection("historia"),"hist");histCol=db.collection("historia");
+  col(claimsCol,"claims");col(squadsCol,"squads");col(resCol,"results");col(trCol,"tr");postsCol=db.collection("noticias");col(postsCol,"posts");col(db.collection("historia"),"hist");histCol=db.collection("historia");
   mktRef.onSnapshot(function(s){LG.market=s.exists?cleanMarket(s.data()):{closed:false,deadline:null};changed()},err);
   fichRef.onSnapshot(function(s){var d=s.exists?s.data():null;LG.fich=d?{open:!!d.open,at:+d.at||0,base:(d.base&&typeof d.base==="object")?d.base:{}}:{open:false,at:0,base:{}};changed()},err);
   teamsRef.onSnapshot(function(s){TLIST=cleanTeams(s.exists?s.data():null);refreshTeams();changed()},err);
 }
 function clearLeague(){
-  LG={hist:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{}},market:{closed:false,deadline:null}};
-  histCol=claimsCol=squadsCol=resCol=trCol=mktRef=fichRef=teamsRef=null;recompute();renderLeague();run()}
+  LG={hist:{},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{}},market:{closed:false,deadline:null}};
+  postsCol=histCol=claimsCol=squadsCol=resCol=trCol=mktRef=fichRef=teamsRef=null;recompute();renderLeague();run()}
 function pubBody(){return JSON.parse(JSON.stringify({team:myTeam,form:sq.form,s:sq.s,bench:sq.bench,ts:sq.ts,status:sq.status,cost:spentNow(),upd:Date.now()}))}
 
 
 function enterView(v){
   var el=$(VIEWS[v]);if(!el||matchMedia("(prefers-reduced-motion:reduce)").matches)return;
-  var n=0;[].forEach.call(el.querySelectorAll(".tcard,.club,.hclub,.palrow,.match,.hrow,.hmatch"),function(c){c.style.setProperty("--i",Math.min(n++,14))});
+  var n=0;[].forEach.call(el.querySelectorAll(".tcard,.club,.hclub,.palrow,.match,.hrow,.hmatch,.post"),function(c){c.style.setProperty("--i",Math.min(n++,14))});
   el.classList.remove("enter");void el.offsetWidth;el.classList.add("enter");clearTimeout(el._en);el._en=setTimeout(function(){el.classList.remove("enter")},1100)}
 
 // ---- navegación
@@ -1038,7 +1065,7 @@ function setView(v){
   Object.keys(VIEWS).forEach(function(k){$(VIEWS[k]).hidden=k!==v});
   [].forEach.call(document.querySelectorAll(".navb"),function(x){x.setAttribute("aria-pressed",x.dataset.v===v)});
   window.scrollTo({top:0});
-  if(v==="home")renderHome();if(v==="hist")renderHist();if(v==="teams")renderTeams();if(v==="liga")renderLiga();enterView(v)}
+  if(v==="home")renderHome();if(v==="hist")renderHist();if(v==="feed")renderFeed();if(v==="teams")renderTeams();if(v==="liga")renderLiga();enterView(v)}
 [].forEach.call(document.querySelectorAll(".navb"),function(b){b.addEventListener("click",function(){setView(b.dataset.v)})});
 
 // ---- tu equipo (Mi plantilla)
@@ -1201,6 +1228,28 @@ function scorers(){
   Object.keys(LG.results).forEach(function(k){var r=LG.results[k];if(!r||!Array.isArray(r.sc))return;r.sc.forEach(function(s){if(!s||!s.n)return;var key=s.t+"|"+String(s.n).toLowerCase();M[key]=M[key]||{n:String(s.n),t:+s.t,c:0};M[key].c+=+s.c||0})});
   return Object.keys(M).map(function(k){return M[k]}).filter(function(x){return x.c>0}).sort(function(a,b){return b.c-a.c||(a.n<b.n?-1:1)})}
 function firstOpenRound(){for(var ri=0;ri<FIX.length;ri++){if(FIX[ri].some(function(x){return !resOf(ri,x)}))return ri+1}return FIX.length}
+
+// ---- cuotas y forma
+function teamForm(tm,uptoRi){
+  var out=[];
+  for(var ri=0;ri<FIX.length&&(uptoRi==null||ri<uptoRi);ri++){FIX[ri].forEach(function(x){
+    if(x[0]!==tm&&x[1]!==tm)return;var r=resOf(ri,x);if(!r)return;
+    var gf=x[0]===tm?+r.h:+r.a,gc=x[0]===tm?+r.a:+r.h;out.push({ri:ri,v:gf>gc?"G":gf<gc?"P":"E"})})}
+  return out.slice(-5)}
+function formIdx(f){if(!f.length)return 0.5;var p=0;f.forEach(function(x){p+=x.v==="G"?3:x.v==="E"?1:0});return p/(3*f.length)}
+function teamPower(tm){var s=teamSummary(tm);return s.n?s.ovr:70}
+function matchOdds(h,a,ri){
+  var fh=teamForm(h,ri),fa=teamForm(a,ri),ph=teamPower(h),pa=teamPower(a);
+  var d=(ph-pa)*1.0+(formIdx(fh)-formIdx(fa))*3+0.8;
+  var e=1/(1+Math.exp(-d/3.2)),pd=0.28*(1-Math.abs(2*e-1)*0.8),p1=e-pd/2,p2=1-e-pd/2;
+  var f=function(p){return Math.max(1.05,Math.round(100/(Math.max(p,0.02)*1.06))/100)};
+  return{o1:f(p1),oX:f(pd),o2:f(p2),p1:p1,pX:pd,p2:p2,fh:fh,fa:fa}}
+function formHTML(f){if(!f.length)return '<small class="frm">Sin partidos</small>';return '<small class="frm">'+f.map(function(x){return '<i class="f'+x.v+'">'+x.v+'</i>'}).join("")+'</small>'}
+function oddsHTML(h,a,ri,r){
+  var o=matchOdds(h,a,ri),res=r?(+r.h>+r.a?"1":+r.h<+r.a?"2":"X"):"";
+  var fav=o.o1<=o.o2&&o.o1<=o.oX?"1":o.o2<o.o1&&o.o2<=o.oX?"2":"X";
+  var c=function(k,v,lab){return '<span class="od'+(res===k?" hit":fav===k&&!res?" fav":"")+'"><em>'+lab+'</em><b>'+v.toFixed(2)+'</b></span>'};
+  return '<div class="odds" title="Cuotas ficticias según la media de la plantilla y los últimos 5 partidos">'+c("1",o.o1,"Local")+c("X",o.oX,"Empate")+c("2",o.o2,"Visita")+'</div>'}
 function tablaHTML(){
   var st=standings(),played=st.some(function(s){return s.pj>0});
   return '<div class="tablebox"><table class="mini"><thead><tr><th class="num">#</th><th>Equipo</th><th class="num">PJ</th><th class="num">G</th><th class="num">E</th><th class="num">P</th><th class="num">GF</th><th class="num">GC</th><th class="num">DG</th><th class="num">Pts</th></tr></thead><tbody>'+
@@ -1211,8 +1260,8 @@ function calHTML(){
   var ri=Math.max(0,selRound-1),opts="";for(var r=1;r<=FIX.length;r++)opts+='<option value="'+r+'"'+(r===selRound?" selected":"")+'>Jornada '+r+(r>FIX.length/2?" (vuelta)":"")+'</option>';
   return '<div class="field" style="max-width:260px"><label for="rsel">Jornada</label><select id="rsel">'+opts+'</select></div><div class="matches">'+
     (FIX[ri]||[]).map(function(x){var r=resOf(ri,x);
-      return '<div class="match"><span class="mt home">'+tnh(x[0])+'</span><button type="button" class="score'+(r?"":" pend")+'" data-res="'+ri+'|'+x[0]+'|'+x[1]+'">'+(r?r.h+" – "+r.a:"Cargar")+'</button><span class="mt away">'+tnh(x[1])+'</span></div>'}).join("")+'</div>'+
-    '<p class="note">Cualquier participante con sesión iniciada puede cargar o corregir un resultado.</p>'}
+      return '<div class="match"><span class="mt home">'+tnh(x[0])+formHTML(teamForm(x[0],ri))+'</span><button type="button" class="score'+(r?"":" pend")+'" data-res="'+ri+'|'+x[0]+'|'+x[1]+'">'+(r?r.h+" – "+r.a:"Cargar")+'</button><span class="mt away">'+tnh(x[1])+formHTML(teamForm(x[1],ri))+'</span>'+oddsHTML(x[0],x[1],ri,r)+'</div>'}).join("")+'</div>'+
+    '<p class="note">Cualquier participante con sesión iniciada puede cargar o corregir un resultado. Las cuotas son ficticias y no mueven dinero: salen de la media de cada plantilla, la localía y los últimos 5 partidos (G ganó, E empató, P perdió).</p>'}
 function golHTML(){
   var s=scorers();if(!s.length)return '<p class="note">Todavía no hay goleadores. Se anotan al cargar cada resultado.</p>';
   return '<div class="tablebox"><table class="mini"><thead><tr><th class="num">#</th><th>Jugador</th><th>Equipo</th><th class="num">Goles</th></tr></thead><tbody>'+
@@ -1289,7 +1338,7 @@ function openResult(ri,h,a){
   var dl=function(t){return '<datalist id="dl'+t+'">'+names2(t).map(function(n){return '<option value="'+esc(n)+'">'}).join("")+'</datalist>'};
   var rowsFor=function(t){return sc.map(function(s,i){return +s.t===t?'<div class="scrow" data-i="'+i+'"><input class="sn" list="dl'+t+'" value="'+esc(s.n)+'" placeholder="Jugador" aria-label="Goleador"><input class="sc" type="number" min="1" max="20" value="'+(+s.c||1)+'" aria-label="Goles"><button type="button" class="close" data-del="'+i+'" aria-label="Quitar">×</button></div>':""}).join("")};
   var draw=function(){
-    $("drawer").innerHTML='<div class="dhead"><div><h2 id="dname">Jornada '+(ri+1)+'</h2><p class="dmeta">'+tnh(h)+' vs '+tnh(a)+'</p></div><button class="close" type="button" id="dclose">Cerrar</button></div>'+
+    $("drawer").innerHTML='<div class="dhead"><div><h2 id="dname">Jornada '+(ri+1)+'</h2><p class="dmeta">'+tnh(h)+' vs '+tnh(a)+'</p></div><button class="close" type="button" id="dclose">Cerrar</button></div>'+'<div class="matches" style="margin-top:12px"><div class="match" style="grid-template-columns:1fr">'+oddsHTML(h,a,ri,LG.results[key])+'</div></div>'+
       '<div class="resform"><div class="field"><label for="rh">'+tnh(h)+'</label><input id="rh" type="number" min="0" max="99" value="'+r.h+'"></div><span>–</span><div class="field"><label for="ra">'+tnh(a)+'</label><input id="ra" type="number" min="0" max="99" value="'+r.a+'"></div></div>'+
       '<h3 class="sec">Goleadores de '+tnh(h)+'</h3><div id="scH">'+rowsFor(h)+'</div><button class="btn" type="button" data-add="'+h+'">Añadir goleador</button>'+
       '<h3 class="sec">Goleadores de '+tnh(a)+'</h3><div id="scA">'+rowsFor(a)+'</div><button class="btn" type="button" data-add="'+a+'">Añadir goleador</button>'+dl(h)+dl(a)+
@@ -1393,6 +1442,64 @@ $("qimg").onclick=function(){
     var a=document.createElement("a"),u=URL.createObjectURL(blob);
     a.href=u;a.download=(myTeam?teamName(myTeam):"plantilla").replace(/[^\w\- ]+/g,"").trim().replace(/\s+/g,"-").toLowerCase()+".png";
     document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},4000);toast("Imagen descargada.")},"image/png")})};
+
+
+// ---- Red NG (noticias de los clubes)
+var FTYPES={noticia:"Noticia",fichaje:"Fichaje",otro:"Otro"},feedFilter="all",feedTeam=0,feedImg="",feedT="noticia";
+function ago(ms){var s=Math.max(0,(Date.now()-ms)/1000);if(s<60)return "ahora";if(s<3600)return Math.floor(s/60)+" min";if(s<86400)return Math.floor(s/3600)+" h";if(s<604800)return Math.floor(s/86400)+" d";return new Date(ms).toLocaleDateString("es-AR",{day:"numeric",month:"short"})}
+function canDelPost(p){return !!uid&&(p.uid===uid||isAdmin)}
+function renderFeed(){
+  var box=$("feedbody");if(!box)return;
+  if($("feedview").hidden&&box.dataset.ok==="1")return;
+  var ta=$("fx"),draft=ta?ta.value:"",foc=document.activeElement&&document.activeElement.id==="fx";
+  var posts=Object.keys(LG.posts).map(function(id){return Object.assign({id:id},LG.posts[id])}).filter(function(p){return p&&p.text&&isActive(+p.team)});
+  posts.sort(function(a,b){return (b.ts||0)-(a.ts||0)});
+  if(feedFilter!=="all")posts=posts.filter(function(p){return p.type===feedFilter});
+  if(feedTeam)posts=posts.filter(function(p){return +p.team===feedTeam});
+  var h="";
+  if(myTeam){
+    h+='<div class="panel composer"><div class="cmphead"><span>'+tnh(myTeam)+'</span><span class="note">Publicas en nombre de tu club</span></div>'+
+      '<div class="chips" role="group" aria-label="Tipo de publicación">'+Object.keys(FTYPES).map(function(k){return '<button type="button" class="tab" data-ft="'+k+'" aria-pressed="'+(feedT===k)+'">'+FTYPES[k]+'</button>'}).join("")+'</div>'+
+      '<textarea id="fx" rows="3" maxlength="500" placeholder="'+(feedT==="fichaje"?"Ej: Presentamos a nuestro nuevo refuerzo…":feedT==="noticia"?"Ej: Gran victoria del equipo en la jornada…":"Cuéntale algo a la liga…")+'" style="font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;resize:vertical;width:100%;margin-top:10px"></textarea>'+
+      '<div id="fimgbox">'+(feedImg?'<div class="fimgp"><img src="'+feedImg+'" alt="Imagen adjunta"><button type="button" class="close" id="fimgx" aria-label="Quitar imagen">×</button></div>':"")+'</div>'+
+      '<div class="actions" style="margin-top:10px;align-items:center"><label class="btn" for="fimg" style="cursor:pointer">Adjuntar imagen</label><input id="fimg" type="file" accept="image/*" hidden><button class="btn primary" type="button" id="fpub">Publicar</button><span class="note" id="fcount">0/500</span></div></div>'}
+  else h+='<p class="note">'+(ref?"Elige tu equipo en Mi plantilla para publicar en nombre de tu club.":"Inicia sesión y elige tu equipo para publicar.")+'</p>';
+  h+='<div class="feedbar"><div class="chips">'+[["all","Todo"],["noticia","Noticias"],["fichaje","Fichajes"],["otro","Otros"]].map(function(x){return '<button type="button" class="tab" data-ff="'+x[0]+'" aria-pressed="'+(feedFilter===x[0])+'">'+x[1]+'</button>'}).join("")+'</div>'+
+    '<div class="field" style="max-width:240px"><label for="fteam">Club</label><select id="fteam"><option value="0">Todos los clubes</option>'+ACT.map(function(x){return '<option value="'+x+'"'+(feedTeam===x?" selected":"")+'>'+esc(teamName(x))+'</option>'}).join("")+'</select></div></div>';
+  h+='<div class="feed">'+(posts.length?posts.slice(0,60).map(function(p){
+    var lk=Array.isArray(p.likes)?p.likes:[],me=uid&&lk.indexOf(uid)>-1;
+    return '<article class="post"><header><b class="pt"><span>'+tnh(+p.team)+'</span></b><span class="pill soft">'+esc(FTYPES[p.type]||"Otro")+'</span><span class="note">'+esc(p.name||"")+' · '+ago(p.ts||0)+'</span>'+(canDelPost(p)?'<button type="button" class="close" data-pdel="'+p.id+'" aria-label="Borrar publicación">×</button>':"")+'</header>'+
+      '<p class="ptx">'+esc(p.text).replace(/\n/g,"<br>")+'</p>'+(p.img?'<img class="pimg" src="'+p.img+'" alt="" loading="lazy">':"")+
+      '<footer><button type="button" class="like'+(me?" on":"")+'" data-like="'+p.id+'" aria-pressed="'+!!me+'" aria-label="Me gusta"><svg width="16" height="16" viewBox="0 0 24 24" fill="'+(me?"currentColor":"none")+'" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s-7-4.6-9.3-9A5.4 5.4 0 0 1 12 6.3 5.4 5.4 0 0 1 21.3 12C19 16.4 12 21 12 21z"/></svg><span>'+lk.length+'</span></button></footer></article>'}).join(""):'<div class="empty">Todavía no hay publicaciones. Sé el primero en contar algo de tu club.</div>')+'</div>';
+  box.innerHTML=h;box.dataset.ok="1";
+  var nt=$("fx");if(nt){nt.value=draft;$("fcount").textContent=draft.length+"/500";if(foc)nt.focus()}
+}
+$("feedbody").addEventListener("input",function(e){if(e.target.id==="fx")$("fcount").textContent=e.target.value.length+"/500"});
+$("feedbody").addEventListener("change",function(e){
+  if(e.target.id==="fteam"){feedTeam=+e.target.value;renderFeed();return}
+  if(e.target.id==="fimg"){var f=e.target.files&&e.target.files[0];if(!f)return;
+    var rd=new FileReader();rd.onload=function(){var im=new Image();im.onload=function(){
+      var s=Math.min(1,720/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.max(1,Math.round(im.width*s));c.height=Math.max(1,Math.round(im.height*s));
+      c.getContext("2d").drawImage(im,0,0,c.width,c.height);var q=.8,u=c.toDataURL("image/webp",q);
+      while(u.length>180000&&q>.3){q-=.1;u=c.toDataURL("image/webp",q)}
+      if(u.indexOf("data:image/")!==0||u.length>300000){toast("La imagen es muy pesada.");return}
+      feedImg=u;renderFeed()};im.onerror=function(){toast("No se pudo leer esa imagen.")};im.src=rd.result};rd.readAsDataURL(f)}});
+$("feedbody").addEventListener("click",function(e){
+  var ft=e.target.closest("[data-ft]");if(ft){var d=$("fx")?$("fx").value:"";feedT=ft.dataset.ft;renderFeed();if($("fx"))$("fx").value=d;return}
+  var ff=e.target.closest("[data-ff]");if(ff){feedFilter=ff.dataset.ff;renderFeed();return}
+  if(e.target.closest("#fimgx")){feedImg="";renderFeed();return}
+  if(e.target.closest("#fpub")){
+    var tx=($("fx").value||"").trim();if(!tx){toast("Escribe algo para publicar.");return}
+    if(!postsCol||!myTeam){toast("Inicia sesión y elige tu equipo.");return}
+    var doc={team:myTeam,uid:uid,name:dtName(uid),type:feedT,text:tx.slice(0,500),ts:Date.now(),likes:[]};if(feedImg)doc.img=feedImg;
+    var id=trId("p");LG.posts[id]=doc;feedImg="";$("fx").value="";renderFeed();
+    postsCol.doc(id).set(doc).then(function(){toast("Publicado.")},function(){delete LG.posts[id];renderFeed();toast("No se pudo publicar.")});return}
+  var dl=e.target.closest("[data-pdel]");if(dl){var pid=dl.dataset.pdel;if(!postsCol)return;var old=LG.posts[pid];delete LG.posts[pid];renderFeed();
+    postsCol.doc(pid).delete().then(function(){toast("Publicación borrada.")},function(){LG.posts[pid]=old;renderFeed();toast("No se pudo borrar.")});return}
+  var lk=e.target.closest("[data-like]");if(lk){if(!uid||!postsCol){toast("Inicia sesión para dar me gusta.");return}
+    var id2=lk.dataset.like,p=LG.posts[id2];if(!p)return;var l=(Array.isArray(p.likes)?p.likes:[]).slice(),i=l.indexOf(uid);if(i>-1)l.splice(i,1);else l.push(uid);
+    var nd=Object.assign({},p,{likes:l});LG.posts[id2]=nd;renderFeed();postsCol.doc(id2).set(nd).catch(function(){LG.posts[id2]=p;renderFeed()})}
+});
 
 // ---- historia y palmarés
 function starsTxt(n){var s="";for(var i=0;i<n;i++)s+="★";return s}
