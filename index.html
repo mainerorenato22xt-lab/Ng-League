@@ -382,6 +382,36 @@ h1{font-family:var(--fd);font-style:italic;text-transform:uppercase;font-size:cl
 .like.on{color:var(--accent);border-color:var(--accent)}.like:active{transform:scale(.94)}
 @media (max-width:620px){.odds{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:no-preference){.like{transition:color .15s,border-color .15s,transform .15s}.enter .post{animation:rise .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*45ms)}}
+
+.slot{touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}.bslot{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.slot.dragging,.bslot.dragging{opacity:.3}
+.slot.ghost,.bslot.ghost{position:fixed;transform:translate(-50%,-50%) scale(1.08);pointer-events:none;z-index:60;opacity:.95;filter:drop-shadow(0 10px 18px rgba(0,0,0,.45));cursor:grabbing;margin:0}
+.bslot.ghost{transform:translate(-50%,-50%) scale(1.04);background:var(--surface)}
+.slot.droptarget .sbody,.bslot.droptarget{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft),0 0 0 4px var(--accent)}
+body.isdrag{cursor:grabbing;user-select:none;-webkit-user-select:none}body.isdrag .pitch{outline:2px dashed rgba(255,255,255,.35);outline-offset:-6px}
+.dragnote{margin:8px 0 0}.linkbtn{background:none;border:0;color:var(--accent);font:inherit;font-weight:700;cursor:pointer;padding:0;text-decoration:underline}
+@keyframes pop{0%{transform:translate(-50%,-50%) scale(.82)}60%{transform:translate(-50%,-50%) scale(1.07)}100%{transform:translate(-50%,-50%) scale(1)}}
+@keyframes bpop{0%{transform:scale(.94)}60%{transform:scale(1.03)}100%{transform:scale(1)}}
+@keyframes shine{from{background-position:-120% 0}to{background-position:220% 0}}
+@keyframes slotin{from{opacity:0;transform:translate(-50%,-30%) scale(.85)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 var(--accent-soft)}50%{box-shadow:0 0 0 6px transparent}}
+@media (prefers-reduced-motion:no-preference){
+  .slot.pop{animation:pop .42s cubic-bezier(.2,.9,.3,1.3)}.bslot.pop{animation:bpop .38s ease}
+  .enter .slot{animation:slotin .5s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*45ms)}
+  .enter .bslot{animation:rise .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*35ms)}
+  #ligaview.enter tbody tr,#teamsview.enter tbody tr,.enter .trow,.enter .od{animation:rise .4s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*30ms)}
+  .enter .panel,.enter .stat,.enter .filters{animation:rise .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*55ms)}
+  .slot .sbody{transition:border-color .15s,box-shadow .15s,transform .15s}.slot:hover .sbody{transform:translateY(-2px)}
+  .slot.empty .sbody{animation:pulse 2.8s ease-in-out infinite}
+  .pill.ok,.live{position:relative}
+  .navb[aria-pressed="true"]{animation:fadein .25s ease}
+  .wrap.enter{animation:fadein .3s ease both}
+  .btn.primary{background-image:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.22) 50%,transparent 65%);background-size:240% 100%;background-position:-120% 0}
+  .btn.primary:hover{animation:shine .8s ease}
+  .post:hover,.tcard:hover{box-shadow:var(--shadow)}
+  .like.on svg{animation:bpop .35s ease}
+  .meter i{transition:width .8s cubic-bezier(.2,.7,.2,1)}
+}
 </style>
 </head>
 <body>
@@ -486,7 +516,7 @@ h1{font-family:var(--fd);font-style:italic;text-transform:uppercase;font-size:cl
       <div class="panel" id="teambox"></div>
       <div class="panel" id="fichbox" hidden></div>
       <div class="panel" id="rulesbox"></div>
-      <div class="panel field"><label for="form">Formación</label><select id="form"></select></div>
+      <div class="panel field"><label for="form">Formación</label><select id="form"></select><p class="note dragnote">Arrastra un jugador sobre otro para intercambiarlos, o sobre la cancha para ubicarlo donde quieras. <button type="button" class="linkbtn" id="posreset" hidden>Restablecer posiciones</button></p></div>
       <div>
         <h3 class="sec" style="margin-top:0">Suplentes</h3>
         <div class="benchgrid" id="bench"></div>
@@ -756,6 +786,7 @@ function clean(d){
   var ok=function(id){return !!(id&&byId[id]&&!seen[id]&&(seen[id]=1))};
   for(var i=0;i<NS;i++)o.s.push(ok(src[i])?src[i]:null);
   for(var b=0;b<NB;b++){var id=d&&Array.isArray(d.bench)?d.bench[b]:null;o.bench.push(ok(id)?id:null)}
+  o.pos=[];for(var q=0;q<NS;q++){var pp=d&&d.form===f&&Array.isArray(d.pos)?d.pos[q]:null;o.pos.push(Array.isArray(pp)&&isFinite(pp[0])&&isFinite(pp[1])?[Math.max(5,Math.min(95,+pp[0])),Math.max(4,Math.min(96,+pp[1]))]:null)}
   o.status=d&&d.status==="entregada"?"entregada":"borrador";o.ts={};
   if(d&&d.ts&&typeof d.ts==="object")o.s.concat(o.bench).forEach(function(id){if(id&&+d.ts[id]>0)o.ts[id]=+d.ts[id]});
   return o}
@@ -772,14 +803,15 @@ function reassign(nf){
   var slots=FORM[nf],ns=new Array(NS).fill(null),pool=sq.s.filter(Boolean);
   var take=function(test){slots.forEach(function(sl,i){if(ns[i])return;for(var k=0;k<pool.length;k++){if(test(byId[pool[k]],sl[0])){ns[i]=pool[k];pool.splice(k,1);return}}})};
   take(function(p,pos){return p.p===pos});take(compat);take(function(){return true});
-  sq.form=nf;sq.s=ns}
+  sq.form=nf;sq.s=ns;sq.pos=[]}
 $("form").addEventListener("change",function(){var bl=editBlock("form");if(bl){toast(bl);$("form").value=sq.form;return};reassign($("form").value);sqSave();renderSquad()});
 
+var popIdx=[];
 function renderSquad(){
   var slots=FORM[sq.form],L=lu(),sel=[];
   $("slots").innerHTML=slots.map(function(s,i){
     var p=L[i]?byId[L[i]]:null;if(p)sel.push(p);
-    return '<button type="button" class="slot'+(p?"":" empty")+'" data-s="'+i+'" style="left:'+s[1]+'%;top:'+s[2]+'%" aria-label="'+POSL[s[0]]+(p?": "+esc(p.n):": vacío")+'">'+
+    return '<button type="button" class="slot'+(p?"":" empty")+'" data-s="'+i+'" style="left:'+((sq.pos&&sq.pos[i])?sq.pos[i][0]:s[1])+'%;top:'+((sq.pos&&sq.pos[i])?sq.pos[i][1]:s[2])+'%" aria-label="'+POSL[s[0]]+(p?": "+esc(p.n):": vacío")+'">'+
       '<span class="sbody">'+(p?'<span class="sovr">'+p.o+'</span><span class="sname">'+esc(short(p.n))+'</span>':'<span class="splus">+</span>')+'</span><span class="spos">'+POSN[s[0]]+'</span></button>'}).join("");
   var bh="";for(var b=0;b<NB;b++){var bp=sq.bench[b]?byId[sq.bench[b]]:null;if(bp)sel.push(bp);
     bh+='<button type="button" class="bslot'+(bp?" has":"")+'" data-b="'+b+'">'+(bp?'<span class="ovr '+tier(bp.o)+'">'+bp.o+'</span><span style="min-width:0"><span class="bn">'+esc(bp.n)+'</span><span class="bm">'+POSN[bp.p]+' · '+bp.a+' años</span></span>':'<span class="note">+ Suplente '+(b+1)+'</span>')+'</button>'}
@@ -789,12 +821,65 @@ function renderSquad(){
   $("qOvr").textContent=n?(so/n).toFixed(1):"–";$("qAge").textContent=n?(sa/n).toFixed(1):"–";
   $("sqn").textContent=n?String(n):"";
   $("form").value=sq.form;
+  var anyPos=(sq.pos||[]).some(Boolean);$("posreset").hidden=!anyPos;
+  if(popIdx.length){popIdx.forEach(function(k){var el=k.t==="s"?document.querySelector('.slot[data-s="'+k.i+'"]'):document.querySelector('.bslot[data-b="'+k.i+'"]');if(el){el.classList.remove("pop");void el.offsetWidth;el.classList.add("pop")}});popIdx=[]}
   renderRules();
   if($("afford").checked)run();
 }
 $("slots").addEventListener("click",function(e){var b=e.target.closest(".slot");if(b)openPicker({t:"s",i:+b.dataset.s})});
 $("bench").addEventListener("click",function(e){var b=e.target.closest(".bslot");if(b)openPicker({t:"b",i:+b.dataset.b})});
 
+
+// ---- arrastrar jugadores
+var DRAG=null,justDragged=0;
+function dragSel(e){var el=e.target.closest(".slot,.bslot");return el&&(el.classList.contains("slot")?{t:"s",i:+el.dataset.s,el:el}:{t:"b",i:+el.dataset.b,el:el})}
+function dragStart(e,src){
+  var r=src.el.getBoundingClientRect(),g=src.el.cloneNode(true);g.classList.add("ghost");g.removeAttribute("data-s");g.removeAttribute("data-b");
+  g.style.width=r.width+"px";g.style.left=e.clientX+"px";g.style.top=e.clientY+"px";document.body.appendChild(g);
+  src.el.classList.add("dragging");DRAG.ghost=g;DRAG.on=true;document.body.classList.add("isdrag");
+  if(navigator.vibrate&&e.pointerType==="touch")try{navigator.vibrate(8)}catch(x){}}
+function dragTarget(e){
+  if(DRAG.ghost)DRAG.ghost.style.display="none";var el=document.elementFromPoint(e.clientX,e.clientY);if(DRAG.ghost)DRAG.ghost.style.display="";
+  var tgt=el&&el.closest(".slot,.bslot");return tgt&&tgt!==DRAG.src.el?tgt:null}
+function dragEnd(commit,e){
+  if(!DRAG)return;var d=DRAG;DRAG=null;document.body.classList.remove("isdrag");
+  clearTimeout(d.lp);document.removeEventListener("pointermove",dragMove);document.removeEventListener("pointerup",dragUp);document.removeEventListener("pointercancel",dragCancel);
+  if(d.ghost)d.ghost.remove();[].forEach.call(document.querySelectorAll(".droptarget,.dragging"),function(x){x.classList.remove("droptarget","dragging")});
+  if(!d.on)return;justDragged=Date.now();if(!commit)return;
+  var tgt=null;if(d.ghost!==undefined){var el=document.elementFromPoint(e.clientX,e.clientY);tgt=el&&el.closest(".slot,.bslot");if(tgt===d.src.el)tgt=null}
+  if(tgt){
+    var to=tgt.classList.contains("slot")?{t:"s",i:+tgt.dataset.s}:{t:"b",i:+tgt.dataset.b};
+    var a=getCur({t:d.src.t,i:d.src.i}),b=getCur(to);if(!a&&!b)return;
+    var bl=editBlock(a&&b?"swap":"add");if(bl){toast(bl);return}
+    var setv=function(tg,v){if(tg.t==="s")lu()[tg.i]=v;else sq.bench[tg.i]=v};
+    setv({t:d.src.t,i:d.src.i},b||null);setv(to,a||null);
+    [[d.src,a],[to,b]].forEach(function(x){});
+    var warn=function(tg,id){if(tg.t!=="s"||!id)return "";var p=byId[id],pos=FORM[sq.form][tg.i][0];return compat(p,pos)?"":p.n+" juega fuera de posición. "};
+    var w=warn(to,a)+warn({t:d.src.t,i:d.src.i},b);if(w)toast(w.trim());
+    popIdx=[{t:d.src.t,i:d.src.i},to];sqSave();renderSquad();return}
+  var pr=$("pitch").getBoundingClientRect();
+  if(d.src.t==="s"&&e.clientX>=pr.left&&e.clientX<=pr.right&&e.clientY>=pr.top&&e.clientY<=pr.bottom){
+    var x=Math.max(8,Math.min(92,(e.clientX-pr.left)/pr.width*100)),y=Math.max(6,Math.min(94,(e.clientY-pr.top)/pr.height*100));
+    sq.pos=sq.pos||[];sq.pos[d.src.i]=[Math.round(x*10)/10,Math.round(y*10)/10];popIdx=[{t:"s",i:d.src.i}];sqSave();renderSquad()}}
+function dragMove(e){
+  if(!DRAG)return;
+  if(!DRAG.on){var dx=e.clientX-DRAG.x,dy=e.clientY-DRAG.y;if(Math.hypot(dx,dy)<8)return;
+    if(e.pointerType==="touch"&&DRAG.src.t==="b"&&!DRAG.armed){dragEnd(false,e);return}
+    dragStart(e,DRAG.src)}
+  DRAG.ghost.style.left=e.clientX+"px";DRAG.ghost.style.top=e.clientY+"px";
+  var tg=dragTarget(e);[].forEach.call(document.querySelectorAll(".droptarget"),function(x){if(x!==tg)x.classList.remove("droptarget")});if(tg)tg.classList.add("droptarget")}
+function dragUp(e){dragEnd(true,e)}
+function dragCancel(e){dragEnd(false,e)}
+function dragDown(e){
+  if(e.button>0||DRAG)return;var src=dragSel(e);if(!src)return;
+  DRAG={src:src,x:e.clientX,y:e.clientY,on:false,armed:false};
+  if(e.pointerType==="touch"&&src.t==="b"){DRAG.lp=setTimeout(function(){if(DRAG&&!DRAG.on){DRAG.armed=true;dragStart({clientX:DRAG.x,clientY:DRAG.y,pointerType:"touch"},DRAG.src)}},320)}
+  document.addEventListener("pointermove",dragMove);document.addEventListener("pointerup",dragUp);document.addEventListener("pointercancel",dragCancel)}
+$("slots").addEventListener("pointerdown",dragDown);$("bench").addEventListener("pointerdown",dragDown);
+document.addEventListener("touchmove",function(e){if(DRAG&&DRAG.on)e.preventDefault()},{passive:false});
+document.addEventListener("click",function(e){if(Date.now()-justDragged<350&&e.target.closest(".slot,.bslot")){e.stopPropagation();e.preventDefault()}},true);
+document.addEventListener("contextmenu",function(e){if(DRAG)e.preventDefault()});
+$("posreset").addEventListener("click",function(){sq.pos=[];sqSave();popIdx=FORM[sq.form].map(function(_,i){return{t:"s",i:i}});renderSquad()});
 function getCur(tg){return tg.t==="s"?lu()[tg.i]:sq.bench[tg.i]}
 function setCur(tg,id){
   var old=tg.t==="s"?lu()[tg.i]:sq.bench[tg.i];
@@ -1052,12 +1137,12 @@ function startLeague(db){
 function clearLeague(){
   LG={hist:{},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{}},market:{closed:false,deadline:null}};
   postsCol=histCol=claimsCol=squadsCol=resCol=trCol=mktRef=fichRef=teamsRef=null;recompute();renderLeague();run()}
-function pubBody(){return JSON.parse(JSON.stringify({team:myTeam,form:sq.form,s:sq.s,bench:sq.bench,ts:sq.ts,status:sq.status,cost:spentNow(),upd:Date.now()}))}
+function pubBody(){return JSON.parse(JSON.stringify({team:myTeam,form:sq.form,s:sq.s,bench:sq.bench,pos:sq.pos||[],ts:sq.ts,status:sq.status,cost:spentNow(),upd:Date.now()}))}
 
 
 function enterView(v){
   var el=$(VIEWS[v]);if(!el||matchMedia("(prefers-reduced-motion:reduce)").matches)return;
-  var n=0;[].forEach.call(el.querySelectorAll(".tcard,.club,.hclub,.palrow,.match,.hrow,.hmatch,.post"),function(c){c.style.setProperty("--i",Math.min(n++,14))});
+  var n=0;[].slice.call(el.querySelectorAll(".tcard,.club,.hclub,.palrow,.match,.hrow,.hmatch,.post,.slot,.bslot,tbody tr,.trow,.panel,.stat"),0,60).forEach(function(c){c.style.setProperty("--i",Math.min(n++,14))});
   el.classList.remove("enter");void el.offsetWidth;el.classList.add("enter");clearTimeout(el._en);el._en=setTimeout(function(){el.classList.remove("enter")},1100)}
 
 // ---- navegación
