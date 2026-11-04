@@ -59,6 +59,35 @@ service cloud.firestore {
       allow delete: if signed() && (resource.data.uid == request.auth.uid || admin());
     }
 
+    // Apuestas con puntos ficticios: cada persona maneja solo las suyas
+    match /apuestas/{id} {
+      allow read: if true;
+      allow create, update: if signed()
+        && request.resource.data.uid == request.auth.uid
+        && id.matches(request.auth.uid + '_.*')
+        && request.resource.data.stake is number
+        && request.resource.data.stake >= 10
+        && request.resource.data.stake <= 100000;
+      allow delete: if signed() && (resource.data.uid == request.auth.uid || admin());
+    }
+
+    // Votos de los premios individuales: uno por persona y categoria
+    match /votos/{id} {
+      allow read: if true;
+      allow create, update: if signed()
+        && request.resource.data.uid == request.auth.uid
+        && id.matches(request.auth.uid + '_.*');
+      allow delete: if signed() && (resource.data.uid == request.auth.uid || admin());
+    }
+
+    // Perfil de cada club: lo edita el presidente (dueno del equipo) o el organizador
+    match /clubes/{team} {
+      allow read: if true;
+      allow write: if signed() && (admin()
+        || (exists(/databases/$(database)/documents/claims/$(request.auth.uid))
+            && string(get(/databases/$(database)/documents/claims/$(request.auth.uid)).data.team) == team));
+    }
+
     // Borrador privado de cada persona
     match /usuarios/{u}/{document=**} {
       allow read, write: if signed() && request.auth.uid == u;
