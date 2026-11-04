@@ -1209,9 +1209,9 @@ function cleanTeams(d){
   base.forEach(function(b){if(!seen[b.id])out.push(b)});
   return out.sort(function(a,b){return a.id-b.id})}
 function refreshTeams(){ACT=TLIST.filter(function(x){return x.active}).map(function(x){return x.id});NT=ACT.length;FIX=buildFixture()}
-var LG={hist:{},bets:{},votes:{},clubs:{},clasicos:{list:[]},premios:{closed:false},palm:{extra:{},last:0,seasons:[]},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{}},market:{closed:false,deadline:null}};
+var LG={hist:{},bets:{},votes:{},clubs:{},clasicos:{list:[]},premios:{closed:false},palm:{extra:{},last:0,seasons:[]},money:{table:[40,25,15,15,8,8,5,5,5,5]},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{},prizes:{}},market:{closed:false,deadline:null}};
 var names={},nameKey="",teamOwner={},myTeam=0,taken={},claimLost=false;
-var betsCol=null,votesCol=null,clubsCol=null,clasRef=null,premRef=null,palmRef=null,postsCol=null,claimsCol=null,squadsCol=null,resCol=null,trCol=null,pubRef=null,mktRef=null,fichRef=null,teamsRef=null;
+var moneyRef=null,betsCol=null,votesCol=null,clubsCol=null,clasRef=null,premRef=null,palmRef=null,postsCol=null,claimsCol=null,squadsCol=null,resCol=null,trCol=null,pubRef=null,mktRef=null,fichRef=null,teamsRef=null;
 var histCol=null,BASE_TITLES={3:3,2:2,1:1,5:1},TITLES=Object.assign({},BASE_TITLES),LAST=5,VUELTAS=1,FOUNDED={2:1911,3:1918,5:1968,8:1911,9:1990},ligaTab="tabla",selRound=0,cmpIds=[];
 var VIEWS={profile:"profileview",feed:"feedview",hist:"historyview",home:"homeview",db:"dbview",sq:"squad",teams:"teamsview",liga:"ligaview"};
 function dtName(u){return u?(names[u]||"Director técnico"):"Sin director técnico"}
@@ -1285,17 +1285,18 @@ function startLeague(db){
   mktRef=db.doc("liga/mercado");fichRef=db.doc("liga/fichajes");teamsRef=db.doc("liga/equipos");
   var err=function(){},col=function(c,key){c.onSnapshot(function(s){var o={};s.docs.forEach(function(d){o[d.id]=d.data()});LG[key]=o;changed()},err)};
   col(claimsCol,"claims");col(squadsCol,"squads");col(resCol,"results");col(trCol,"tr");postsCol=db.collection("noticias");col(postsCol,"posts");betsCol=db.collection("apuestas");col(betsCol,"bets");votesCol=db.collection("votos");col(votesCol,"votes");clubsCol=db.collection("clubes");col(clubsCol,"clubs");
-  clasRef=db.doc("liga/clasicos");premRef=db.doc("liga/premios");palmRef=db.doc("liga/palmares");
+  clasRef=db.doc("liga/clasicos");premRef=db.doc("liga/premios");palmRef=db.doc("liga/palmares");moneyRef=db.doc("liga/dinero");
+  moneyRef.onSnapshot(function(s){var d=s.exists?s.data():null;var tb=d&&Array.isArray(d.table)?d.table.slice(0,30).map(function(v){v=+v;return isFinite(v)&&v>=0?Math.round(v*10)/10:0}):[40,25,15,15,8,8,5,5,5,5];LG.money={table:tb};changed()},err);
   clasRef.onSnapshot(function(s){var d=s.exists?s.data():null;LG.clasicos={list:d&&Array.isArray(d.list)?d.list.slice(0,20):[]};changed()},err);
   premRef.onSnapshot(function(s){var d=s.exists?s.data():null;LG.premios={closed:!!(d&&d.closed)};changed()},err);
   palmRef.onSnapshot(function(s){var d=s.exists?s.data():null;LG.palm={extra:d&&d.extra&&typeof d.extra==="object"?d.extra:{},last:d&&+d.last||0,seasons:d&&Array.isArray(d.seasons)?d.seasons:[]};applyPalm();changed()},err);col(db.collection("historia"),"hist");histCol=db.collection("historia");
   mktRef.onSnapshot(function(s){LG.market=s.exists?cleanMarket(s.data()):{closed:false,deadline:null};changed()},err);
-  fichRef.onSnapshot(function(s){var d=s.exists?s.data():null;LG.fich=d?{open:!!d.open,at:+d.at||0,base:(d.base&&typeof d.base==="object")?d.base:{}}:{open:false,at:0,base:{}};changed()},err);
+  fichRef.onSnapshot(function(s){var d=s.exists?s.data():null;LG.fich=d?{open:!!d.open,at:+d.at||0,base:(d.base&&typeof d.base==="object")?d.base:{},prizes:(d.prizes&&typeof d.prizes==="object")?d.prizes:{}}:{open:false,at:0,base:{},prizes:{}};changed()},err);
   teamsRef.onSnapshot(function(s){var d=s.exists?s.data():null;TLIST=cleanTeams(d);VUELTAS=d&&+d.vueltas===2?2:1;refreshTeams();changed()},err);
 }
 function clearLeague(){
-  LG={hist:{},bets:{},votes:{},clubs:{},clasicos:{list:[]},premios:{closed:false},palm:{extra:{},last:0,seasons:[]},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{}},market:{closed:false,deadline:null}};
-  betsCol=votesCol=clubsCol=clasRef=premRef=palmRef=postsCol=histCol=claimsCol=squadsCol=resCol=trCol=mktRef=fichRef=teamsRef=null;recompute();renderLeague();run()}
+  LG={hist:{},bets:{},votes:{},clubs:{},clasicos:{list:[]},premios:{closed:false},palm:{extra:{},last:0,seasons:[]},money:{table:[40,25,15,15,8,8,5,5,5,5]},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{},prizes:{}},market:{closed:false,deadline:null}};
+  moneyRef=betsCol=votesCol=clubsCol=clasRef=premRef=palmRef=postsCol=histCol=claimsCol=squadsCol=resCol=trCol=mktRef=fichRef=teamsRef=null;recompute();renderLeague();run()}
 function pubBody(){return JSON.parse(JSON.stringify({team:myTeam,form:sq.form,s:sq.s,bench:sq.bench,pos:sq.pos||[],ts:sq.ts,status:sq.status,cost:spentNow(),upd:Date.now()}))}
 
 
@@ -1583,8 +1584,8 @@ function orgHTML(){
     '<div class="field" style="max-width:280px"><label for="mdl">Fecha y hora de cierre</label><input id="mdl" type="datetime-local" value="'+toLocalInput(LG.market.deadline)+'"></div>'+
     '<div class="actions" style="margin-top:10px"><button class="btn primary" type="button" id="msave">Guardar fecha</button><button class="btn" type="button" id="mclear">Quitar fecha</button><button class="btn '+(closed?"":"dangerbtn")+'" type="button" id="mtoggle">'+(closed?"Reabrir mercado":"Cerrar mercado ahora")+'</button></div>'+
     '<p class="note" style="margin:10px 0 0">Cuando el mercado cierra, nadie puede modificar su plantilla. Estado actual: <b>'+(marketClosed()?"cerrado":"abierto")+'</b>.</p></div>'+
-    '<div class="panel org"><h3 class="sec" style="margin:0 0 10px">Fichajes entre temporadas</h3>'+
-    '<p class="note" style="margin:0 0 10px">Al abrirlos, el saldo de cada equipo es su presupuesto menos lo que cuesta su plantilla actual. Cada director técnico puede vender jugadores al club (recibe el valor menos un 20 %) y ofertar por jugadores de otros equipos. Abrir una ventana nueva reinicia los saldos.</p>'+
+    moneyEditor()+'<div class="panel org"><h3 class="sec" style="margin:0 0 10px">Fichajes entre temporadas</h3>'+
+    '<p class="note" style="margin:0 0 10px">Al abrirlos, el saldo de cada equipo es su presupuesto menos lo que cuesta su plantilla actual. Cada director técnico puede vender jugadores al club (recibe el valor menos un 20 %) y ofertar por jugadores de otros equipos. Abrir una ventana nueva reinicia los saldos y suma el premio en dinero de la temporada.</p>'+
     '<div class="actions"><button class="btn '+(fichOpen()?"dangerbtn":"primary")+'" type="button" id="fichtoggle">'+(fichOpen()?"Cerrar fichajes":"Abrir fichajes")+'</button></div>'+
     '<p class="note" style="margin:10px 0 0">Estado actual: <b>'+(fichOpen()?"abiertos":"cerrados")+'</b>.</p></div>'+
     '<div class="panel org"><h3 class="sec" style="margin:0 0 10px">Formato de la liga</h3><p class="note" style="margin:0 0 10px">Ahora: <b>'+(VUELTAS===2?"doble vuelta":"una sola vuelta")+'</b> ('+FIX.length+' fechas). Después de la liga clasifican los 6 primeros a los playoffs.</p><div class="actions"><button class="btn'+(VUELTAS===1?" primary":"")+'" type="button" id="vueltas1">Una vuelta</button><button class="btn'+(VUELTAS===2?" primary":"")+'" type="button" id="vueltas2">Doble vuelta</button></div><p class="note" style="margin:10px 0 0">Cambiarlo con la temporada empezada reordena el calendario.</p></div>'+
@@ -1634,12 +1635,13 @@ function addTeam(){
   rd.readAsDataURL(f)}
 function toggleFich(){
   if(!fichRef){toast("Inicia sesión como organizador.");return}
-  if(fichOpen()){fichRef.set({open:false,at:LG.fich.at,base:LG.fich.base}).then(function(){LG.fich.open=false;renderLeague();toast("Fichajes cerrados.")},function(){toast("No se pudo cerrar.")});return}
+  if(fichOpen()){fichRef.set({open:false,at:LG.fich.at,base:LG.fich.base,prizes:LG.fich.prizes||{}}).then(function(){LG.fich.open=false;renderLeague();toast("Fichajes cerrados.")},function(){toast("No se pudo cerrar.")});return}
   var base={};
   ACT.forEach(function(tm){var u=teamOwner[tm],d=u&&u===uid?{s:sq.s,bench:sq.bench}:(u?LG.squads[u]:null),c=0;
     if(d)(d.s||[]).concat(d.bench||[]).forEach(function(id){if(id&&byId[id])c+=byId[id].k||0});base[tm]=rnd1(RULES.budget-c)});
-  var at=Date.now();
-  fichRef.set({open:true,at:at,base:base}).then(function(){LG.fich={open:true,at:at,base:base};renderLeague();toast("Fichajes abiertos.")},function(){toast("No se pudo abrir.")})}
+  var at=Date.now(),R=finalRanking(),pz={};
+  if(R.order.length&&!R.prov){var pm=prizeMap(R);ACT.forEach(function(tm){if(pm[tm]){pz[tm]=pm[tm];base[tm]=rnd1((+base[tm]||0)+pm[tm])}})}
+  fichRef.set({open:true,at:at,base:base,prizes:pz}).then(function(){LG.fich={open:true,at:at,base:base,prizes:pz};renderLeague();toast(Object.keys(pz).length?"Fichajes abiertos. Se pagaron los premios de la temporada.":"Fichajes abiertos. Sin premios: la temporada no terminó.")},function(){toast("No se pudo abrir.")})}
 function db_pub_delete(u){if(squadsCol)squadsCol.doc(u).delete().catch(function(){})}
 function saveMarket(m,msg){if(!mktRef){toast("Inicia sesión para cambiar el mercado.");return}
   mktRef.set({closed:!!m.closed,deadline:m.deadline||null}).then(function(){LG.market=cleanMarket(m);renderLeague();toast(msg)},function(){toast("No se pudo guardar el mercado.")})}
@@ -1853,6 +1855,30 @@ function recordPalm(){
   var seasons=(LG.palm.seasons||[]).concat([{fk:String(r.upd),champ:B.champ,ts:Date.now()}]);
   palmRef.set({extra:ex,last:B.champ,seasons:seasons}).then(function(){LG.palm={extra:ex,last:B.champ,seasons:seasons};applyPalm();renderLeague();toast("Título sumado al palmarés.")},function(){toast("No se pudo guardar en el palmarés.")})}
 
+
+// ---- premios en dinero de fin de temporada
+function finalRanking(){
+  var st=standings().map(function(s){return s.t}),done=leagueDone(),B=bracket(),order=[];
+  if(!done)return{order:st,prov:true,how:"liga"};
+  if(B.ok&&B.champ){
+    var M=B.M,pos=function(x){return st.indexOf(x)},fin=M.F.h===B.champ?M.F.a:M.F.h;
+    var lose=function(m){return m.w?(m.w===m.h?m.a:m.h):0};
+    var sf=[lose(M.S1),lose(M.S2)].filter(Boolean).sort(function(a,b){return pos(a)-pos(b)}),qf=[lose(M.QA),lose(M.QB)].filter(Boolean).sort(function(a,b){return pos(a)-pos(b)});
+    order=[B.champ,fin].concat(sf,qf);st.forEach(function(x){if(order.indexOf(x)<0)order.push(x)});
+    return{order:order,prov:false,how:"playoffs"}}
+  if(B.ok)return{order:st,prov:true,how:"liga"};
+  return{order:st,prov:false,how:"liga"}}
+function prizeMap(R){var m={};R.order.forEach(function(tm,i){var v=LG.money.table[i];if(v)m[tm]=v});return m}
+function moneyHTML(){
+  var R=finalRanking(),pm=prizeMap(R),paid=LG.fich.prizes||{},isPaid=Object.keys(paid).length>0&&LG.fich.open;
+  var rows=R.order.map(function(tm,i){var v=pm[tm]||0;return '<tr><td class="num">'+(i+1)+'</td><td class="pname">'+tnh(tm)+'</td><td class="num"><b>'+(v?"+"+fmtM(v)+" M":"–")+'</b></td></tr>'}).join("");
+  return '<h3 class="sec">Premios en dinero</h3><p class="note" style="margin:0 0 10px">'+(R.prov?"Provisorio: se paga cuando termine la temporada ("+(R.how==="liga"&&leagueDone()?"falta la final de playoffs":"falta terminar la liga")+"). Hoy el orden sale de la tabla.":"Orden final de la temporada.")+' El dinero se suma al saldo de cada club cuando el organizador abre los fichajes'+(isPaid?" (<b>ya pagado</b>)":"")+'.</p><div class="tablebox"><table class="mini"><thead><tr><th class="num">Puesto</th><th>Club</th><th class="num">Premio</th></tr></thead><tbody>'+rows+'</tbody></table></div>'}
+function moneyEditor(){
+  var n=ACT.length||10,tb=LG.money.table;
+  return '<div class="panel org"><h3 class="sec" style="margin:0 0 10px">Premios en dinero de la temporada</h3><p class="note" style="margin:0 0 10px">Millones que recibe cada club según su puesto final (1º = campeón, 2º = finalista, 3º y 4º = semifinalistas, 5º y 6º = cuartos de final, el resto por la tabla). Se suman al saldo al abrir los fichajes, solo si la temporada terminó.</p><div class="pgrid">'+
+    Array.apply(null,Array(n)).map(function(_,i){return '<label class="pcell"><span>'+(i+1)+'º</span><input type="number" min="0" step="0.5" data-mp="'+i+'" value="'+(tb[i]||0)+'"></label>'}).join("")+'</div><div class="actions" style="margin-top:12px"><button class="btn primary" type="button" id="msavepz">Guardar premios</button><button class="btn" type="button" id="mresetpz">Valores iniciales</button></div></div>'}
+function saveMoney(tb){if(!moneyRef){toast("Inicia sesión como organizador.");return}moneyRef.set({table:tb}).then(function(){LG.money={table:tb};renderLeague();toast("Premios guardados.")},function(){toast("No se pudo guardar.")})}
+
 // ---- apuestas con puntos ficticios
 function betList(){return Object.keys(LG.bets).map(function(id){return Object.assign({id:id},LG.bets[id])}).filter(function(b){return b&&b.mk&&b.uid})}
 function outcomeOf(mk,ko){var r=LG.results[mk];if(!r||r.h==null||r.a==null)return "";var gh=+r.h,ga=+r.a;if(gh>ga)return "1";if(ga>gh)return "2";if(r.pw==="h")return "1";if(r.pw==="a")return "2";return ko?"":"X"}
@@ -1921,6 +1947,7 @@ function premHTML(){
   A.push(card("🎰","Rey de las apuestas",rk?esc(rk.n||dtName(rk.u)):"—",rk?rk.w.pts+" puntos":"Sin apuestas"));
   A.push(card("🏆","Campeón de playoffs",B.champ?esc(teamName(B.champ)):"—",B.champ?"Ganó la final":"Se define al final"));
   h+='<h3 class="sec" style="margin-top:0">Premios automáticos</h3><div class="awgrid">'+A.join("")+'</div>';
+  h+=moneyHTML();
   h+='<h3 class="sec">Votación de los directores técnicos</h3><p class="note" style="margin:0 0 10px">'+(LG.premios.closed?"La votación está cerrada.":"Cada director técnico vota una vez por categoría y puede cambiar su voto hasta que se cierre.")+'</p><div class="awgrid">';
   VCATS.forEach(function(c){
     var tl=tally(c[0]),total=tl.reduce(function(s,x){return s+x.n},0),myv=uid&&LG.votes[uid+"_"+c[0]],lab=function(v){if(c[3]==="t")return teamName(+v);var p=byId[v];return p?p.n:"—"};
@@ -2001,6 +2028,8 @@ $("ligaview").addEventListener("click",function(e){
   if(e.target.closest("#palmgo")){recordPalm();return}
   if(e.target.closest("[data-login]")){login();return}
   if(e.target.closest("#premtoggle")){if(!premRef)return;var nv=!LG.premios.closed;premRef.set({closed:nv}).then(function(){LG.premios={closed:nv};renderLeague();toast(nv?"Votación cerrada.":"Votación reabierta.")},function(){toast("No se pudo cambiar.")});return}
+  if(e.target.closest("#msavepz")){var tb=[].map.call(document.querySelectorAll("[data-mp]"),function(i){var v=parseFloat(i.value);return isFinite(v)&&v>0?Math.round(v*10)/10:0});saveMoney(tb);return}
+  if(e.target.closest("#mresetpz")){saveMoney([40,25,15,15,8,8,5,5,5,5]);return}
   if(e.target.closest("#claadd")){var a=+$("cla1").value,c2=+$("cla2").value,nm=$("clan").value.trim();if(!a||!c2||a===c2){toast("Elige dos equipos distintos.");return}
     var list=(LG.clasicos.list||[]).concat([{id:"c"+Date.now().toString(36),a:a,b:c2,name:nm||"Clásico"}]);saveClas(list,"Clásico agregado.");return}
   var cd=e.target.closest("[data-clasdel]");if(cd){var id=cd.dataset.clasdel.split("|")[0];saveClas((LG.clasicos.list||[]).filter(function(x){return x.id!==id}),"Clásico quitado.");return}
