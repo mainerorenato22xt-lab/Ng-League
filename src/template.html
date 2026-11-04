@@ -537,6 +537,7 @@ body.isdrag{cursor:grabbing;user-select:none;-webkit-user-select:none}body.isdra
 .clubprof{margin-top:14px}.shirts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.shirt{margin:0;background:var(--surface2);border-radius:12px;padding:8px;text-align:center}.shirt img{width:100%;aspect-ratio:1;object-fit:contain}.shirt figcaption{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:4px}
 .cinfo{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 0}.cinfo div{background:var(--surface2);border-radius:10px;padding:8px 10px}.cinfo dt{font-size:11.5px;color:var(--muted);font-weight:600}.cinfo dd{margin:0;font-weight:700;overflow-wrap:anywhere}
 .shirted{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.se{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}.sp{width:100%;aspect-ratio:1;background:var(--surface2);border-radius:12px;display:grid;place-items:center;overflow:hidden}.sp img{width:100%;height:100%;object-fit:contain}
+.seasons{display:flex;flex-direction:column;gap:8px}.seas{display:flex;align-items:center;gap:12px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font:inherit;color:inherit;cursor:pointer}.seas:hover{border-color:var(--accent)}.seas .sn{font-family:var(--fd);font-style:italic;font-weight:800;font-size:20px;min-width:42px;color:var(--accent)}.seas .sm{flex:1;min-width:0}.seas .sm b{display:block}.seas small{color:var(--muted)}
 </style>
 
 <header class="bar"><div class="bar-in">
@@ -664,7 +665,7 @@ body.isdrag{cursor:grabbing;user-select:none;-webkit-user-select:none}body.isdra
 </main>
 
 <main class="wrap" id="ligaview" hidden>
-  <div><h1>Liga</h1><p class="sub">Tabla de posiciones, calendario, goleadores y organización del torneo.</p></div>
+  <div><h1>Liga</h1><p class="sub"><b id="seasonlbl"></b> · Tabla de posiciones, calendario, goleadores y organización del torneo.</p></div>
   <div class="seg2 ltabs" role="group" aria-label="Secciones de la liga">
     <button type="button" data-lt="tabla" aria-pressed="true">Tabla</button><button type="button" data-lt="cal" aria-pressed="false">Calendario</button><button type="button" data-lt="po" aria-pressed="false">Playoffs</button><button type="button" data-lt="bet" aria-pressed="false">Apuestas</button><button type="button" data-lt="prem" aria-pressed="false">Premios</button><button type="button" data-lt="cla" aria-pressed="false">Clásicos</button><button type="button" data-lt="gol" aria-pressed="false">Goleadores</button><button type="button" data-lt="org" id="ltorg" aria-pressed="false" hidden>Organizar</button>
   </div>
@@ -1189,9 +1190,9 @@ function cleanTeams(d){
   base.forEach(function(b){if(!seen[b.id])out.push(b)});
   return out.sort(function(a,b){return a.id-b.id})}
 function refreshTeams(){ACT=TLIST.filter(function(x){return x.active}).map(function(x){return x.id});NT=ACT.length;FIX=buildFixture()}
-var LG={hist:{},bets:{},votes:{},clubs:{},clasicos:{list:[]},premios:{closed:false},palm:{extra:{},last:0,seasons:[]},money:{table:[40,25,15,15,8,8,5,5,5,5]},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{},prizes:{}},market:{closed:false,deadline:null}};
+var LG={hist:{},bets:{},votes:{},clubs:{},clasicos:{list:[]},premios:{closed:false},palm:{extra:{},last:0,seasons:[]},season:{n:8,since:0},seasons:{},money:{table:[40,25,15,15,8,8,5,5,5,5]},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{},prizes:{},season:0},market:{closed:false,deadline:null}};
 var names={},nameKey="",teamOwner={},myTeam=0,taken={},claimLost=false;
-var moneyRef=null,betsCol=null,votesCol=null,clubsCol=null,clasRef=null,premRef=null,palmRef=null,postsCol=null,claimsCol=null,squadsCol=null,resCol=null,trCol=null,pubRef=null,mktRef=null,fichRef=null,teamsRef=null;
+var seasRef=null,seasCol=null,moneyRef=null,betsCol=null,votesCol=null,clubsCol=null,clasRef=null,premRef=null,palmRef=null,postsCol=null,claimsCol=null,squadsCol=null,resCol=null,trCol=null,pubRef=null,mktRef=null,fichRef=null,teamsRef=null;
 var histCol=null,BASE_TITLES={3:3,2:2,1:1,5:1},TITLES=Object.assign({},BASE_TITLES),LAST=5,VUELTAS=1,FOUNDED={2:1911,3:1918,5:1968,8:1911,9:1990},ligaTab="tabla",selRound=0,cmpIds=[];
 var VIEWS={profile:"profileview",feed:"feedview",hist:"historyview",home:"homeview",db:"dbview",sq:"squad",teams:"teamsview",liga:"ligaview"};
 function dtName(u){return u?(names[u]||"Director técnico"):"Sin director técnico"}
@@ -1265,18 +1266,19 @@ function startLeague(db){
   mktRef=db.doc("liga/mercado");fichRef=db.doc("liga/fichajes");teamsRef=db.doc("liga/equipos");
   var err=function(){},col=function(c,key){c.onSnapshot(function(s){var o={};s.docs.forEach(function(d){o[d.id]=d.data()});LG[key]=o;changed()},err)};
   col(claimsCol,"claims");col(squadsCol,"squads");col(resCol,"results");col(trCol,"tr");postsCol=db.collection("noticias");col(postsCol,"posts");betsCol=db.collection("apuestas");col(betsCol,"bets");votesCol=db.collection("votos");col(votesCol,"votes");clubsCol=db.collection("clubes");col(clubsCol,"clubs");
-  clasRef=db.doc("liga/clasicos");premRef=db.doc("liga/premios");palmRef=db.doc("liga/palmares");moneyRef=db.doc("liga/dinero");
+  clasRef=db.doc("liga/clasicos");premRef=db.doc("liga/premios");palmRef=db.doc("liga/palmares");moneyRef=db.doc("liga/dinero");seasRef=db.doc("liga/temporada");seasCol=db.collection("temporadas");col(seasCol,"seasons");
+  seasRef.onSnapshot(function(s){var d=s.exists?s.data():null;LG.season={n:d&&+d.n>0?Math.floor(+d.n):8,since:d&&+d.since||0};changed()},err);
   moneyRef.onSnapshot(function(s){var d=s.exists?s.data():null;var tb=d&&Array.isArray(d.table)?d.table.slice(0,30).map(function(v){v=+v;return isFinite(v)&&v>=0?Math.round(v*10)/10:0}):[40,25,15,15,8,8,5,5,5,5];LG.money={table:tb};changed()},err);
   clasRef.onSnapshot(function(s){var d=s.exists?s.data():null;LG.clasicos={list:d&&Array.isArray(d.list)?d.list.slice(0,20):[]};changed()},err);
   premRef.onSnapshot(function(s){var d=s.exists?s.data():null;LG.premios={closed:!!(d&&d.closed)};changed()},err);
   palmRef.onSnapshot(function(s){var d=s.exists?s.data():null;LG.palm={extra:d&&d.extra&&typeof d.extra==="object"?d.extra:{},last:d&&+d.last||0,seasons:d&&Array.isArray(d.seasons)?d.seasons:[]};applyPalm();changed()},err);col(db.collection("historia"),"hist");histCol=db.collection("historia");
   mktRef.onSnapshot(function(s){LG.market=s.exists?cleanMarket(s.data()):{closed:false,deadline:null};changed()},err);
-  fichRef.onSnapshot(function(s){var d=s.exists?s.data():null;LG.fich=d?{open:!!d.open,at:+d.at||0,base:(d.base&&typeof d.base==="object")?d.base:{},prizes:(d.prizes&&typeof d.prizes==="object")?d.prizes:{}}:{open:false,at:0,base:{},prizes:{}};changed()},err);
+  fichRef.onSnapshot(function(s){var d=s.exists?s.data():null;LG.fich=d?{open:!!d.open,at:+d.at||0,base:(d.base&&typeof d.base==="object")?d.base:{},prizes:(d.prizes&&typeof d.prizes==="object")?d.prizes:{},season:+d.season||0}:{open:false,at:0,base:{},prizes:{},season:0};changed()},err);
   teamsRef.onSnapshot(function(s){var d=s.exists?s.data():null;TLIST=cleanTeams(d);VUELTAS=d&&+d.vueltas===2?2:1;refreshTeams();changed()},err);
 }
 function clearLeague(){
-  LG={hist:{},bets:{},votes:{},clubs:{},clasicos:{list:[]},premios:{closed:false},palm:{extra:{},last:0,seasons:[]},money:{table:[40,25,15,15,8,8,5,5,5,5]},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{},prizes:{}},market:{closed:false,deadline:null}};
-  moneyRef=betsCol=votesCol=clubsCol=clasRef=premRef=palmRef=postsCol=histCol=claimsCol=squadsCol=resCol=trCol=mktRef=fichRef=teamsRef=null;recompute();renderLeague();run()}
+  LG={hist:{},bets:{},votes:{},clubs:{},clasicos:{list:[]},premios:{closed:false},palm:{extra:{},last:0,seasons:[]},season:{n:8,since:0},seasons:{},money:{table:[40,25,15,15,8,8,5,5,5,5]},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{},prizes:{},season:0},market:{closed:false,deadline:null}};
+  seasRef=seasCol=moneyRef=betsCol=votesCol=clubsCol=clasRef=premRef=palmRef=postsCol=histCol=claimsCol=squadsCol=resCol=trCol=mktRef=fichRef=teamsRef=null;recompute();renderLeague();run()}
 function pubBody(){return JSON.parse(JSON.stringify({team:myTeam,form:sq.form,s:sq.s,bench:sq.bench,pos:sq.pos||[],ts:sq.ts,status:sq.status,cost:spentNow(),upd:Date.now()}))}
 
 
@@ -1564,7 +1566,7 @@ function orgHTML(){
     '<div class="field" style="max-width:280px"><label for="mdl">Fecha y hora de cierre</label><input id="mdl" type="datetime-local" value="'+toLocalInput(LG.market.deadline)+'"></div>'+
     '<div class="actions" style="margin-top:10px"><button class="btn primary" type="button" id="msave">Guardar fecha</button><button class="btn" type="button" id="mclear">Quitar fecha</button><button class="btn '+(closed?"":"dangerbtn")+'" type="button" id="mtoggle">'+(closed?"Reabrir mercado":"Cerrar mercado ahora")+'</button></div>'+
     '<p class="note" style="margin:10px 0 0">Cuando el mercado cierra, nadie puede modificar su plantilla. Estado actual: <b>'+(marketClosed()?"cerrado":"abierto")+'</b>.</p></div>'+
-    moneyEditor()+'<div class="panel org"><h3 class="sec" style="margin:0 0 10px">Fichajes entre temporadas</h3>'+
+    seasonOrgHTML()+moneyEditor()+'<div class="panel org"><h3 class="sec" style="margin:0 0 10px">Fichajes entre temporadas</h3>'+
     '<p class="note" style="margin:0 0 10px">Al abrirlos, el saldo de cada equipo es su presupuesto menos lo que cuesta su plantilla actual. Cada director técnico puede vender jugadores al club (recibe el valor menos un 20 %) y ofertar por jugadores de otros equipos. Abrir una ventana nueva reinicia los saldos y suma el premio en dinero de la temporada.</p>'+
     '<div class="actions"><button class="btn '+(fichOpen()?"dangerbtn":"primary")+'" type="button" id="fichtoggle">'+(fichOpen()?"Cerrar fichajes":"Abrir fichajes")+'</button></div>'+
     '<p class="note" style="margin:10px 0 0">Estado actual: <b>'+(fichOpen()?"abiertos":"cerrados")+'</b>.</p></div>'+
@@ -1580,7 +1582,7 @@ function renderLiga(){
   $("ltorg").hidden=!isAdmin;if(ligaTab==="org"&&!isAdmin)ligaTab="tabla";
   if($("ligaview").hidden&&box.dataset.ok==="1"&&ligaTab!=="org")return;
   var focusSel=document.activeElement&&document.activeElement.id==="rsel";
-  var TABS={tabla:tablaHTML,cal:calHTML,gol:golHTML,po:poHTML,bet:betHTML,prem:premHTML,cla:claHTML,org:orgHTML};box.innerHTML=(TABS[ligaTab]||tablaHTML)();box.dataset.ok="1";
+  if($("seasonlbl"))$("seasonlbl").textContent="Temporada "+curSeason();var TABS={tabla:tablaHTML,cal:calHTML,gol:golHTML,po:poHTML,bet:betHTML,prem:premHTML,cla:claHTML,org:orgHTML};box.innerHTML=(TABS[ligaTab]||tablaHTML)();box.dataset.ok="1";
   if(focusSel&&$("rsel"))$("rsel").focus()}
 $("ligaview").addEventListener("click",function(e){
   var t=e.target.closest("[data-lt]");if(t){ligaTab=t.dataset.lt;renderLiga();return}
@@ -1613,15 +1615,16 @@ function addTeam(){
     c.getContext("2d").drawImage(im,0,0,c.width,c.height);var u=c.toDataURL("image/webp",.85);if(u.indexOf("data:image/webp")!==0)u=c.toDataURL("image/png");done(u)};
     im.onerror=function(){toast("No se pudo leer ese escudo. Prueba con otra imagen.")};im.src=rd.result};
   rd.readAsDataURL(f)}
+function squadBase(){var base={};
+  ACT.forEach(function(tm){var u=teamOwner[tm],d=u&&u===uid?{s:sq.s,bench:sq.bench}:(u?LG.squads[u]:null),c=0;
+    if(d)(d.s||[]).concat(d.bench||[]).forEach(function(id){if(id&&byId[id])c+=byId[id].k||0});base[tm]=rnd1(RULES.budget-c)});return base}
 function toggleFich(){
   if(!fichRef){toast("Inicia sesión como organizador.");return}
-  if(fichOpen()){fichRef.set({open:false,at:LG.fich.at,base:LG.fich.base,prizes:LG.fich.prizes||{}}).then(function(){LG.fich.open=false;renderLeague();toast("Fichajes cerrados.")},function(){toast("No se pudo cerrar.")});return}
-  var base={};
-  ACT.forEach(function(tm){var u=teamOwner[tm],d=u&&u===uid?{s:sq.s,bench:sq.bench}:(u?LG.squads[u]:null),c=0;
-    if(d)(d.s||[]).concat(d.bench||[]).forEach(function(id){if(id&&byId[id])c+=byId[id].k||0});base[tm]=rnd1(RULES.budget-c)});
+  if(fichOpen()){fichRef.set({open:false,at:LG.fich.at,base:LG.fich.base,prizes:LG.fich.prizes||{},season:LG.fich.season||0}).then(function(){LG.fich.open=false;renderLeague();toast("Fichajes cerrados.")},function(){toast("No se pudo cerrar.")});return}
+  var base=squadBase();
   var at=Date.now(),R=finalRanking(),pz={};
   if(R.order.length&&!R.prov){var pm=prizeMap(R);ACT.forEach(function(tm){if(pm[tm]){pz[tm]=pm[tm];base[tm]=rnd1((+base[tm]||0)+pm[tm])}})}
-  fichRef.set({open:true,at:at,base:base,prizes:pz}).then(function(){LG.fich={open:true,at:at,base:base,prizes:pz};renderLeague();toast(Object.keys(pz).length?"Fichajes abiertos. Se pagaron los premios de la temporada.":"Fichajes abiertos. Sin premios: la temporada no terminó.")},function(){toast("No se pudo abrir.")})}
+  fichRef.set({open:true,at:at,base:base,prizes:pz,season:curSeason()}).then(function(){LG.fich={open:true,at:at,base:base,prizes:pz,season:curSeason()};renderLeague();toast(Object.keys(pz).length?"Fichajes abiertos. Se pagaron los premios de la temporada.":"Fichajes abiertos. Sin premios: la temporada no terminó.")},function(){toast("No se pudo abrir.")})}
 function db_pub_delete(u){if(squadsCol)squadsCol.doc(u).delete().catch(function(){})}
 function saveMarket(m,msg){if(!mktRef){toast("Inicia sesión para cambiar el mercado.");return}
   mktRef.set({closed:!!m.closed,deadline:m.deadline||null}).then(function(){LG.market=cleanMarket(m);renderLeague();toast(msg)},function(){toast("No se pudo guardar el mercado.")})}
@@ -1836,6 +1839,85 @@ function recordPalm(){
   palmRef.set({extra:ex,last:B.champ,seasons:seasons}).then(function(){LG.palm={extra:ex,last:B.champ,seasons:seasons};applyPalm();renderLeague();toast("Título sumado al palmarés.")},function(){toast("No se pudo guardar en el palmarés.")})}
 
 
+
+// ===== temporadas: cierre, archivo e historial =====
+function curSeason(){return LG.season&&LG.season.n>0?LG.season.n:8}
+function votesWinners(){var o={};VCATS.forEach(function(c){var tl=tally(c[0]);if(tl.length){var v=tl[0].v,lab=c[3]==="t"?teamName(+v):(byId[v]?byId[v].n:"");o[c[0]]={val:String(v),label:lab,n:tl[0].n}}});return o}
+function buildArchive(){
+  var n=curSeason(),R=finalRanking(),st=standings(),sc=scorers(),B=bracket(),pm=prizeMap(R),names={},res={},po={};
+  ACT.forEach(function(x){names[x]=teamName(x)});
+  Object.keys(LG.results).forEach(function(k){var r=LG.results[k];if(r&&r.h!=null&&r.a!=null){var o={h:+r.h,a:+r.a};if(r.pw)o.pw=r.pw;res[k]=o}});
+  if(B.ok)Object.keys(B.M).forEach(function(k){var m=B.M[k];if(m.h&&m.a){var o={h:m.h,a:m.a};if(m.r){o.hg=+m.r.h;o.ag=+m.r.a;if(m.r.pw)o.pw=m.r.pw}po[k]=o}});
+  var us={};betList().forEach(function(b){us[b.uid]=b.name||""});
+  var rk=Object.keys(us).map(function(u){return{n:us[u]||dtName(u),p:wallet(u).pts}}).sort(function(a,b){return b.p-a.p})[0]||null;
+  var table=st.map(function(s){return{t:s.t,pj:s.pj,g:s.g,e:s.e,p:s.p,gf:s.gf,gc:s.gc,pts:s.pts}});
+  var doc={n:n,closedAt:Date.now(),champ:R.order[0]||0,finalist:R.order[1]||0,how:R.how,order:R.order,names:names,table:table,po:po,results:res,prizes:pm,
+    scorers:sc.slice(0,5).map(function(x){return{n:x.n,t:x.t,c:x.c}}),votes:votesWinners(),by:uid};
+  if(rk)doc.bettor=rk;return doc}
+function seasonOrgHTML(){
+  var n=curSeason(),done=leagueDone();
+  return '<div class="panel org"><h3 class="sec" style="margin:0 0 10px">Temporada '+n+'</h3><p class="note" style="margin:0 0 10px">Al cerrarla se guarda todo en el historial (tabla, campeón, goleadores, premios), se suma el título al palmarés, se pagan los premios en dinero, se abren los fichajes y se limpian resultados, apuestas y votos para arrancar la temporada '+(n+1)+'. Las plantillas, clásicos y perfiles de los clubes se conservan.</p>'+
+    '<div class="actions"><button class="btn primary" type="button" id="seasclose">Cerrar temporada '+n+'</button></div>'+
+    '<p class="note" style="margin:10px 0 0">'+(done?(bracket().champ?"Liga y playoffs terminados: listo para cerrar.":"La liga terminó. Faltan los playoffs."):"Todavía faltan partidos de liga.")+'</p>'+
+    '<div class="field" style="max-width:220px;margin-top:12px"><label for="snum">Número de la temporada actual</label><input id="snum" type="number" min="1" step="1" value="'+n+'"></div><div class="actions" style="margin-top:8px"><button class="btn" type="button" id="snumsave">Guardar número</button></div></div>'}
+function openCloseSeason(){
+  var n=curSeason(),R=finalRanking(),B=bracket(),pm=prizeMap(R),incomplete=R.prov||!leagueDone();
+  var rows=R.order.slice(0,6).map(function(tm,i){return '<tr><td class="num">'+(i+1)+'</td><td class="pname">'+tnh(tm)+'</td><td class="num">'+(pm[tm]?"+"+fmtM(pm[tm])+" M":"–")+'</td></tr>'}).join("");
+  $("drawer").innerHTML='<div class="dhead"><div><h2 id="dname">Cerrar temporada '+n+'</h2><p class="dmeta">Esta acción no se puede deshacer.</p></div><button class="close" type="button" id="dclose">Cerrar</button></div>'+
+    '<div class="champ-banner" style="margin-top:14px">'+(crestOf(R.order[0])?'<img src="'+crestOf(R.order[0])+'" alt="">':'')+'<div><small>Campeón'+(incomplete?' (según la tabla)':'')+'</small><b style="font-size:24px">'+esc(teamName(R.order[0]))+'</b></div></div>'+
+    '<div class="tablebox"><table class="mini"><thead><tr><th class="num">#</th><th>Club</th><th class="num">Premio</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<ul class="note" style="margin:12px 0 0;padding-left:18px"><li>Se guardan '+Object.keys(LG.results).length+' resultados, '+betList().length+' apuestas y los votos en el historial.</li><li>Se borran resultados, apuestas, votos y playoffs de esta temporada.</li><li>Los fichajes se abren con el premio ya sumado al saldo.</li></ul>'+
+    (incomplete?'<label class="chk" style="display:flex;gap:8px;align-items:flex-start;margin-top:14px"><input type="checkbox" id="csforce"><span>La temporada no está completa ('+(leagueDone()?"faltan los playoffs":"faltan partidos")+'). Cerrar igual usando la tabla actual.</span></label>':'')+
+    '<div class="actions" style="margin-top:16px"><button class="btn dangerbtn" type="button" id="csgo"'+(incomplete?' disabled':'')+'>Cerrar y empezar la temporada '+(n+1)+'</button></div><p class="note" id="csmsg" style="margin:10px 0 0"></p>';
+  lastFocus=document.activeElement;$("overlay").hidden=false;$("dclose").onclick=close;
+  var f=$("csforce");if(f)f.onchange=function(){$("csgo").disabled=!f.checked};
+  $("csgo").onclick=function(){doCloseSeason()}}
+function doCloseSeason(){
+  if(!seasCol||!seasRef||!isAdmin){toast("Solo el organizador puede cerrar la temporada.");return}
+  var n=curSeason(),arch=buildArchive(),msg=$("csmsg"),btn=$("csgo");btn.disabled=true;msg.textContent="Guardando el historial…";
+  var fail=function(why){msg.textContent=why+" Puedes volver a intentarlo: no se duplica nada.";btn.disabled=false};
+  seasCol.doc("t"+n).set(arch).then(function(){
+    // palmarés
+    var fk=koRes("po-F")?String(koRes("po-F").upd):"s"+n,sn=(LG.palm.seasons||[]);
+    var pp=Promise.resolve();
+    if(arch.champ&&!sn.some(function(s){return s.fk===fk})){var ex=Object.assign({},LG.palm.extra||{});ex[arch.champ]=(+ex[arch.champ]||0)+1;var ss=sn.concat([{fk:fk,champ:arch.champ,ts:Date.now(),n:n}]);
+      pp=palmRef.set({extra:ex,last:arch.champ,seasons:ss}).then(function(){LG.palm={extra:ex,last:arch.champ,seasons:ss};applyPalm()})}
+    return pp}).then(function(){
+    msg.textContent="Pagando premios y abriendo fichajes…";
+    var paid=LG.fich.season===n&&Object.keys(LG.fich.prizes||{}).length>0,pm=arch.prizes||{};
+    if(paid||!fichRef)return;
+    var base,at;
+    if(LG.fich.open&&LG.fich.season===n){base=Object.assign({},LG.fich.base);at=LG.fich.at}else{base=squadBase();at=Date.now()}
+    Object.keys(pm).forEach(function(tm){base[tm]=rnd1((+base[tm]||0)+pm[tm])});
+    var pay={open:true,at:at,base:base,prizes:pm,season:n};return fichRef.set(pay).then(function(){LG.fich=pay})}).then(function(){
+    msg.textContent="Limpiando la temporada…";
+    var dels=[];Object.keys(LG.results).forEach(function(k){dels.push(resCol.doc(k).delete())});Object.keys(LG.bets).forEach(function(k){dels.push(betsCol.doc(k).delete())});Object.keys(LG.votes).forEach(function(k){dels.push(votesCol.doc(k).delete())});
+    if(premRef)dels.push(premRef.set({closed:false}));
+    return Promise.all(dels)}).then(function(){
+    return seasRef.set({n:n+1,since:Date.now()})}).then(function(){
+    LG.results={};LG.bets={};LG.votes={};LG.premios={closed:false};LG.seasons[("t"+n)]=arch;LG.season={n:n+1,since:Date.now()};
+    close();ligaTab="tabla";renderLeague();renderHist();toast("Temporada "+n+" cerrada. Empieza la "+(n+1)+".")}).catch(function(){fail("No se pudo completar el cierre.")})}
+function seasonsHTML(){
+  var ids=Object.keys(LG.seasons).map(function(k){return LG.seasons[k]}).filter(function(s){return s&&s.n}).sort(function(a,b){return b.n-a.n});
+  if(!ids.length)return '';
+  var nm=function(s,t){return (s.names&&s.names[t])||teamName(t)};
+  return '<h3 class="sec">Temporadas anteriores</h3><div class="seasons">'+ids.map(function(s){var g=s.scorers&&s.scorers[0];
+    return '<button type="button" class="seas" data-seas="'+s.n+'"><span class="sn">T'+s.n+'</span><span class="sm"><b>'+esc(nm(s,s.champ))+'</b><small>Campeón'+(s.finalist?' · Finalista '+esc(nm(s,s.finalist)):'')+(g?' · Goleador '+esc(g.n)+' ('+g.c+')':'')+'</small></span><span class="note">Ver</span></button>'}).join("")+'</div>'}
+function openSeasonDetail(n){
+  var s=LG.seasons["t"+n];if(!s)return;var nm=function(t){return (s.names&&s.names[t])||teamName(t)};
+  var tb=(s.table||[]).map(function(r,i){return '<tr><td class="num">'+(i+1)+'</td><td class="pname">'+(crestOf(r.t)?'<img class="crest" src="'+crestOf(r.t)+'" alt="" width="20" height="20"> ':'')+esc(nm(r.t))+'</td><td class="num">'+r.pj+'</td><td class="num">'+r.gf+':'+r.gc+'</td><td class="num"><b>'+r.pts+'</b></td></tr>'}).join("");
+  var po=s.po||{},pl={QA:"Cuartos A",QB:"Cuartos B",S1:"Semifinal 1",S2:"Semifinal 2",F:"Final"};
+  var pr=Object.keys(pl).filter(function(k){return po[k]&&po[k].hg!=null}).map(function(k){var m=po[k];return '<div class="ofrow"><span><b>'+esc(nm(m.h))+' '+m.hg+' – '+m.ag+' '+esc(nm(m.a))+'</b><small>'+pl[k]+(m.pw&&m.hg===m.ag?' · definió por penales '+esc(nm(m.pw==="h"?m.h:m.a)):'')+'</small></span></div>'}).join("");
+  var pz=Object.keys(s.prizes||{}).sort(function(a,b){return s.prizes[b]-s.prizes[a]}).map(function(x){return esc(nm(+x))+' <b>+'+fmtM(s.prizes[x])+' M</b>'}).join(" · ");
+  var aw=[];if(s.scorers&&s.scorers.length)aw.push("⚽ "+s.scorers.slice(0,3).map(function(x){return esc(x.n)+" ("+x.c+")"}).join(", "));
+  if(s.votes)Object.keys(s.votes).forEach(function(k){var c=VCATS.filter(function(v){return v[0]===k})[0];if(c)aw.push("🏅 "+c[1]+": "+esc(s.votes[k].label||"—"))});
+  if(s.bettor)aw.push("🎰 Rey de las apuestas: "+esc(s.bettor.n)+" ("+s.bettor.p+" pts)");
+  $("drawer").innerHTML='<div class="dhead"><div><h2 id="dname">Temporada '+s.n+'</h2><p class="dmeta">Campeón: '+esc(nm(s.champ))+'</p></div><button class="close" type="button" id="dclose">Cerrar</button></div>'+
+    '<h3 class="sec">Tabla final</h3><div class="tablebox"><table class="mini"><thead><tr><th class="num">#</th><th>Club</th><th class="num">PJ</th><th class="num">GF:GC</th><th class="num">Pts</th></tr></thead><tbody>'+tb+'</tbody></table></div>'+
+    (pr?'<h3 class="sec">Playoffs</h3><div class="panel">'+pr+'</div>':'')+(aw.length?'<h3 class="sec">Premios individuales</h3><div class="panel">'+aw.map(function(a){return '<p style="margin:4px 0">'+a+'</p>'}).join("")+'</div>':'')+
+    (pz?'<h3 class="sec">Premios en dinero</h3><p class="note">'+pz+'</p>':'');
+  lastFocus=document.activeElement;$("overlay").hidden=false;$("dclose").onclick=close}
+
 // ---- premios en dinero de fin de temporada
 function finalRanking(){
   var st=standings().map(function(s){return s.t}),done=leagueDone(),B=bracket(),order=[];
@@ -2008,6 +2090,8 @@ $("ligaview").addEventListener("click",function(e){
   if(e.target.closest("#palmgo")){recordPalm();return}
   if(e.target.closest("[data-login]")){login();return}
   if(e.target.closest("#premtoggle")){if(!premRef)return;var nv=!LG.premios.closed;premRef.set({closed:nv}).then(function(){LG.premios={closed:nv};renderLeague();toast(nv?"Votación cerrada.":"Votación reabierta.")},function(){toast("No se pudo cambiar.")});return}
+  if(e.target.closest("#seasclose")){openCloseSeason();return}
+  if(e.target.closest("#snumsave")){var nv=Math.floor(+$("snum").value);if(!(nv>0)||!seasRef){toast("Número inválido.");return}seasRef.set({n:nv,since:LG.season.since||Date.now()}).then(function(){LG.season={n:nv,since:LG.season.since};renderLeague();toast("Número de temporada guardado.")},function(){toast("No se pudo guardar.")});return}
   if(e.target.closest("#msavepz")){var tb=[].map.call(document.querySelectorAll("[data-mp]"),function(i){var v=parseFloat(i.value);return isFinite(v)&&v>0?Math.round(v*10)/10:0});saveMoney(tb);return}
   if(e.target.closest("#mresetpz")){saveMoney([40,25,15,15,8,8,5,5,5,5]);return}
   if(e.target.closest("#claadd")){var a=+$("cla1").value,c2=+$("cla2").value,nm=$("clan").value.trim();if(!a||!c2||a===c2){toast("Elige dos equipos distintos.");return}
@@ -2092,13 +2176,14 @@ function renderHist(){
     return '<div class="palrow'+(n?"":" zero")+'"><span class="pos">'+(n?i+1:"")+'</span>'+(crestOf(t)?'<img src="'+crestOf(t)+'" alt="">':"<span></span>")+
       '<span><b class="nm">'+esc(teamName(t))+'</b><small>'+(n?(n===1?"1 título":n+" títulos")+(t===LAST?" · último campeón":""):"Sin títulos todavía")+'</small></span>'+
       '<span class="cnt">'+(n?n+' <span class="stars" aria-hidden="true">'+starsTxt(n)+'</span>':"–")+'</span></div>'}).join("")+'</div>';
+  h+=seasonsHTML();
   h+='<h3 class="sec">Los clubes</h3><div class="hgrid">'+order.map(function(t){var n=TITLES[t]||0,d=LG.hist["t"+t],tx=d&&d.text?String(d.text):"";
     return '<article class="hclub"><header>'+(crestOf(t)?'<img src="'+crestOf(t)+'" alt="">':"<span></span>")+'<div><h3>'+esc(teamName(t))+'</h3><span class="note">'+esc(teamOwner[t]?"Dirige "+dtName(teamOwner[t]):"Sin director técnico")+'</span></div></header>'+
       '<div class="facts2"><span class="pill '+(n?"warn":"soft")+'">'+(n?(n===1?"1 título":n+" títulos"):"Sin títulos")+'</span>'+(t===LAST?'<span class="pill ok">Último campeón</span>':"")+(FOUNDED[t]?'<span class="pill soft">Fundado en '+FOUNDED[t]+'</span>':"")+'</div>'+
       '<p class="story'+(tx?"":" empty")+'">'+(tx?esc(tx):"Todavía no hay historia escrita para este club.")+'</p>'+
       (canEditHist(t)?'<div class="actions"><button class="btn" type="button" data-hist="'+t+'">'+(tx?"Editar historia":"Escribir historia")+'</button></div>':"")+'</article>'}).join("")+'</div>';
   box.innerHTML=h;box.dataset.ok="1"}
-$("histbody").addEventListener("click",function(e){var b=e.target.closest("[data-hist]");if(!b)return;var t=+b.dataset.hist;if(!canEditHist(t)||!histCol)return;
+$("histbody").addEventListener("click",function(e){var sb=e.target.closest("[data-seas]");if(sb){openSeasonDetail(+sb.dataset.seas);return}var b=e.target.closest("[data-hist]");if(!b)return;var t=+b.dataset.hist;if(!canEditHist(t)||!histCol)return;
   var cur=LG.hist["t"+t]&&LG.hist["t"+t].text||"";
   $("drawer").innerHTML='<div class="dhead"><div><h2 id="dname">Historia de '+tnh(t)+'</h2><p class="dmeta">Cuenta cómo nació el club, sus mejores momentos y sus ídolos.</p></div><button class="close" type="button" id="dclose">Cerrar</button></div>'+
     '<div class="field" style="margin-top:16px"><label for="htx">Historia</label><textarea id="htx" rows="12" maxlength="1500" style="font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;resize:vertical">'+esc(cur)+'</textarea></div>'+
