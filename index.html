@@ -421,6 +421,9 @@ body.isdrag{cursor:grabbing;user-select:none;-webkit-user-select:none}body.isdra
   .like.on svg{animation:bpop .35s ease}
   .meter i{transition:width .8s cubic-bezier(.2,.7,.2,1)}
 }
+
+.ntfrow{display:flex;gap:10px;align-items:flex-start;cursor:pointer;padding:4px 0}.ntfrow input{margin-top:4px;width:18px;height:18px;accent-color:var(--accent)}
+.ntfrow span{display:flex;flex-direction:column}.ntfrow small{color:var(--muted);font-size:12.5px;font-weight:400;margin-top:2px}
 </style>
 </head>
 <body>
@@ -977,9 +980,9 @@ function paintAcc(){
   if(acc.st==="in"){
     p.innerHTML='<div class="who"><span class="av" id="accav2"></span><div><h3>'+esc(acc.name||"Mi cuenta")+'</h3><p class="note">Sesión iniciada con Google</p></div></div>'+
       '<div class="syncline"><span class="dot" id="accd"></span><span id="accsync"></span></div>'+
-      '<p class="note" id="accteam"></p><p class="note">Tu borrador se guarda en tu cuenta. Al volver a entrar con Google, lo encuentras como lo dejaste.</p>'+
+      '<div id="ntfbox"></div><p class="note" id="accteam"></p><p class="note">Tu borrador se guarda en tu cuenta. Al volver a entrar con Google, lo encuentras como lo dejaste.</p>'+
       '<div class="actions"><button class="btn" type="button" id="accnow">Guardar ahora</button><button class="btn" type="button" id="accout">Cerrar sesión</button></div>';
-    $("accout").onclick=logout;
+    $("accout").onclick=logout;paintNtf();
     if(acc.avatar)$("accav2").style.backgroundImage='url("'+acc.avatar+'")';
     $("accnow").onclick=function(){dirty=true;flush();if(!ref)return;toast("Guardando tu plantilla…")};
   }else{
@@ -1123,12 +1126,12 @@ function updateMbar(){
   var closed=marketClosed(),t=closed?"Mercado cerrado: las plantillas ya no se pueden modificar.":LG.market.deadline?"Mercado abierto · cierra en "+fmtLeft(LG.market.deadline-Date.now()):"Mercado abierto";
   if(fichOpen()){t="Fichajes abiertos: vende a tus jugadores y ofrece por los de otros equipos.";closed=false}
   el.className="mbar"+(closed?" closed":"");$("mbarin").textContent=t}
-setInterval(updateMbar,30000);
+setInterval(updateMbar,30000);setInterval(function(){notifyScan()},30000);
 
 // cambios de datos compartidos
 var chT=null;
 function changed(){clearTimeout(chT);chT=setTimeout(function(){
-  recompute();
+  recompute();notifyScan();
   var ids=Object.keys(LG.claims).sort().join(",");
   if(ids!==nameKey&&BK){nameKey=ids;BK.profiles(Object.keys(LG.claims)).then(function(ps){Object.keys(ps).forEach(function(id){names[id]=(ps[id]&&ps[id].name)||names[id]||""});renderLeague()}).catch(function(){})}
   applyIncoming();renderLeague();renderSquad();run()},40)}
@@ -1242,7 +1245,7 @@ function openOffer(p){
     if(pr>cashOf(myTeam)+1e-9){toast("No te alcanza: tu saldo es "+fmtM(cashOf(myTeam))+" M.");return}
     var dup=myOut().some(function(x){return x.status==="pendiente"&&x.player===p.id});if(dup){toast("Ya hiciste una oferta pendiente por este jugador.");return}
     trSet({kind:"oferta",player:p.id,from:tb.t,to:myTeam,price:pr,status:"pendiente",by:uid});renderLeague();close();toast("Oferta enviada a "+teamName(tb.t)+".")}}
-function offerState(x,id){var d=Object.assign({},LG.tr[id],x);LG.tr[id]=d;if(trCol)trCol.doc(id).set(d).catch(function(){toast("No se pudo actualizar la oferta.")});renderLeague()}
+function offerState(x,id){var d=Object.assign({},LG.tr[id],x,{upd:Date.now()});LG.tr[id]=d;if(trCol)trCol.doc(id).set(d).catch(function(){toast("No se pudo actualizar la oferta.")});renderLeague()}
 function renderFichBox(){
   var b=$("fichbox");if(!b)return;
   if(!fichOpen()||!myTeam){b.hidden=true;b.innerHTML="";return}
@@ -1537,6 +1540,64 @@ $("qimg").onclick=function(){
     a.href=u;a.download=(myTeam?teamName(myTeam):"plantilla").replace(/[^\w\- ]+/g,"").trim().replace(/\s+/g,"-").toLowerCase()+".png";
     document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},4000);toast("Imagen descargada.")},"image/png")})};
 
+
+
+// ---- avisos (notificaciones mientras la app está abierta o en segundo plano)
+var NTF_KEY="ngl-avisos",NTF_SEEN="ngl-avisos-ts",ntfSeen={},ntfSess={};
+function ntfSupported(){return "Notification" in window}
+function ntfOn(){try{return localStorage.getItem(NTF_KEY)==="1"&&ntfSupported()&&Notification.permission==="granted"}catch(e){return false}}
+function paintNtf(){
+  var b=$("ntfbox");if(!b)return;
+  if(!ntfSupported()){b.innerHTML='<p class="note">Para recibir avisos en iPhone, instala la app: Compartir → Agregar a inicio, y ábrela desde el ícono.</p>';return}
+  var denied=Notification.permission==="denied";
+  b.innerHTML='<label class="ntfrow"><input type="checkbox" id="ntf"'+(ntfOn()?" checked":"")+(denied?" disabled":"")+'><span><b>Avisos de la liga</b><small>Ofertas, resultados de tu equipo, novedades de la Red y cierre del mercado.</small></span></label>'+
+    (denied?'<p class="note" style="color:var(--warn)">Bloqueaste los avisos en este navegador. Actívalos desde los ajustes del sitio.</p>':'<p class="note">Llegan mientras la app está abierta o en segundo plano.</p>');
+  $("ntf").onchange=function(){
+    var on=this.checked,cb=this;
+    if(!on){try{localStorage.setItem(NTF_KEY,"0")}catch(e){}toast("Avisos desactivados.");return}
+    Notification.requestPermission().then(function(r){
+      if(r==="granted"){try{localStorage.setItem(NTF_KEY,"1");localStorage.setItem(NTF_SEEN+(uid||""),String(Date.now()))}catch(e){}toast("Avisos activados.");ntfSend("NG League","Avisos activados. Te vamos a avisar de lo importante.","ntf-on",true)}
+      else{cb.checked=false;paintNtf();toast("No se activaron los avisos.")}})}}
+function ntfSend(title,body,tag,force){
+  if(!ntfOn()&&!force)return;
+  if(!document.hidden&&!force){toast(title+": "+body);return}
+  var o={body:body,tag:tag,icon:"assets/icons/icon-192.png",badge:"assets/icons/icon-192.png",renotify:false};
+  var plain=function(){try{new Notification(title,o)}catch(e){}};
+  try{
+    if(navigator.serviceWorker&&navigator.serviceWorker.getRegistration){navigator.serviceWorker.getRegistration().then(function(r){if(r&&r.showNotification)r.showNotification(title,o);else plain()}).catch(plain)}
+    else plain()}catch(e){plain()}}
+function ntfEvents(){
+  var ev=[];if(!uid)return ev;
+  Object.keys(LG.tr).forEach(function(id){var x=LG.tr[id];if(!x||x.kind!=="oferta"||!x.win&&x.win!==0)return;if(+x.win!==+LG.fich.at)return;
+    var p=byId[x.player],n=p?p.n:"un jugador";
+    if(myTeam&&+x.from===myTeam&&x.status==="pendiente"&&x.by!==uid)ev.push({k:"of"+id+"p",ts:x.ts||0,t:"Oferta por "+n,b:teamName(+x.to)+" ofrece "+fmtM(+x.price)+" M."});
+    if(myTeam&&+x.to===myTeam&&(x.status==="aceptada"||x.status==="rechazada")&&x.upd)ev.push({k:"of"+id+x.status,ts:x.upd,t:x.status==="aceptada"?"Oferta aceptada":"Oferta rechazada",b:teamName(+x.from)+" "+(x.status==="aceptada"?"aceptó":"rechazó")+" tu oferta por "+n+"."})});
+  Object.keys(LG.posts).forEach(function(id){var p=LG.posts[id];if(!p||!p.text||p.uid===uid||!isActive(+p.team))return;
+    ev.push({k:"po"+id,ts:p.ts||0,t:teamName(+p.team)+" · "+(FTYPES[p.type]||"Red"),b:String(p.text).slice(0,110)})});
+  Object.keys(LG.results).forEach(function(k){var r=LG.results[k];if(!r||r.by===uid||!r.upd)return;var m=/^r(\d+)-(\d+)-(\d+)$/.exec(k);if(!m)return;var h=+m[2],a=+m[3];
+    if(!myTeam||(h!==myTeam&&a!==myTeam))return;ev.push({k:"re"+k+r.upd,ts:r.upd,t:"Resultado cargado",b:teamName(h)+" "+r.h+" – "+r.a+" "+teamName(a)})});
+  if(LG.fich.open&&LG.fich.at)ev.push({k:"fi"+LG.fich.at,ts:LG.fich.at,t:"Fichajes abiertos",b:"Ya puedes vender jugadores y hacer ofertas."});
+  var dl=LG.market.deadline,left=dl?dl-Date.now():0;
+  if(dl&&left>0&&left<=3600000)ev.push({k:"mk"+dl,ts:Date.now(),t:"El mercado está por cerrar",b:"Cierra en "+fmtLeft(left)+". Revisa tu plantilla.",live:true});
+  return ev}
+var ntfPrev=null;
+function notifyScan(){
+  if(!uid||!ntfSupported())return;
+  var key=NTF_SEEN+uid,last=0;try{last=+localStorage.getItem(key)||0}catch(e){}
+  var cur={mk:!!LG.market.closed,fi:!!LG.fich.open};
+  if(!ntfOn()){ntfPrev=cur;return}
+  if(!last){try{localStorage.setItem(key,String(Date.now()))}catch(e){}last=Date.now()}
+  var maxTs=last;
+  ntfEvents().forEach(function(e){
+    if(ntfSess[e.k])return;ntfSess[e.k]=1;
+    if(!(e.live||e.ts>last))return;
+    if(e.ts>maxTs&&!e.live)maxTs=e.ts;
+    ntfSend(e.t,e.b,e.k)});
+  if(ntfPrev){
+    if(cur.mk&&!ntfPrev.mk)ntfSend("Mercado cerrado","Las plantillas ya no se pueden modificar.","mk-closed");
+    if(!cur.fi&&ntfPrev.fi)ntfSend("Fichajes cerrados","Se cerró la ventana de fichajes.","fi-closed")}
+  ntfPrev=cur;
+  if(maxTs>last){try{localStorage.setItem(key,String(maxTs))}catch(e){}}}
 
 // ---- Red NG (noticias de los clubes)
 var FTYPES={noticia:"Noticia",fichaje:"Fichaje",otro:"Otro"},feedFilter="all",feedTeam=0,feedImg="",feedT="noticia";
