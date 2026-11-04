@@ -88,6 +88,12 @@ service cloud.firestore {
             && string(get(/databases/$(database)/documents/claims/$(request.auth.uid)).data.team) == team));
     }
 
+    // Historial de temporadas cerradas: solo las escribe el organizador
+    match /temporadas/{id} {
+      allow read: if true;
+      allow write: if signed() && admin();
+    }
+
     // Borrador privado de cada persona
     match /usuarios/{u}/{document=**} {
       allow read, write: if signed() && request.auth.uid == u;
