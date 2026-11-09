@@ -1502,7 +1502,10 @@ function openTeam(t){
   lastFocus=document.activeElement;$("overlay").hidden=false;$("dclose").focus();$("dclose").onclick=close;var eb=$("clubedit");if(eb)eb.onclick=function(){openClubEdit(t)}}
 
 // ---- liga: calendario, tabla y goleadores
+var GAME_FIX=[[[7,10],[1,2],[6,5],[4,8],[9,3]],[[2,7],[10,9],[5,1],[8,6],[3,4]],[[7,5],[10,2],[1,8],[6,3],[9,4]],[[8,7],[5,10],[2,9],[3,1],[4,6]],[[7,3],[10,8],[2,5],[1,4],[9,6]],[[4,7],[3,10],[8,2],[5,9],[6,1]],[[7,6],[10,4],[2,3],[5,8],[9,1]],[[1,7],[6,10],[4,2],[3,5],[8,9]],[[9,7],[10,1],[2,6],[5,4],[8,3]]];
+function gameFixOk(){if(ACT.length!==10)return false;var s={};ACT.forEach(function(x){s[x]=1});for(var i=1;i<=10;i++)if(!s[i])return false;return true}
 function buildFixture(){
+  if(gameFixOk()){var g=GAME_FIX.map(function(m){return m.map(function(x){return[x[0],x[1]]})});return VUELTAS===2?g.concat(g.map(function(m){return m.map(function(x){return[x[1],x[0]]})})):g}
   var arr=ACT.slice(),rounds=[];if(arr.length<2)return[];if(arr.length%2)arr.push(0);
   var n=arr.length,r,i;
   for(r=0;r<n-1;r++){var m=[];for(i=0;i<n/2;i++){var a=arr[i],b=arr[n-1-i];if(a&&b)m.push(r%2===0?[a,b]:[b,a])}rounds.push(m);arr=[arr[0],arr[n-1]].concat(arr.slice(1,n-1))}
