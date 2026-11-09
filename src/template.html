@@ -1667,7 +1667,7 @@ function openResult(ri,h,a,opt){
       if(!resCol){toast("Inicia sesión para cargar resultados.");return}
       var list=sc.filter(function(s){return s.n}).map(function(s){return{n:s.n,t:+s.t,c:Math.max(1,Math.round(+s.c||1))}});
       if(opt.ko&&gh===ga&&!r.pw){toast("Elige quién ganó por penales.");return}
-      var doc={h:Math.round(gh),a:Math.round(ga),sc:list,by:uid,upd:Date.now()};if(opt.ko&&gh===ga)doc.pw=r.pw;
+      var doc={h:Math.round(gh),a:Math.round(ga),sc:list,by:uid,upd:Date.now()};if(opt.ko&&gh===ga)doc.pw=r.pw;if(opt.ko){doc.th=h;doc.ta=a}
       resCol.doc(key).set(doc).then(function(){LG.results[key]=doc;renderLiga();close();toast("Resultado guardado.")},function(){toast("No se pudo guardar el resultado.")});return}
     if(e.target.closest("#rdel")){if(!resCol)return;resCol.doc(key).delete().then(function(){delete LG.results[key];renderLiga();close();toast("Resultado borrado.")},function(){toast("No se pudo borrar.")})}};
 }
@@ -1820,8 +1820,8 @@ function notifyScan(){
 // ===== temporada: playoffs, apuestas, premios, clásicos y perfil de club =====
 var BET_START=1000,BET_MIN=10,h2hSel={a:0,b:0},voteDraft={};
 function leagueDone(){return FIX.length>0&&FIX.every(function(m,ri){return m.every(function(x){return !!resOf(ri,x)})})}
-function koRes(k){var r=LG.results[k];return r&&r.h!=null&&r.a!=null?r:null}
-function koWinner(k,h,a){var r=koRes(k);if(!r||!h||!a)return 0;var gh=+r.h,ga=+r.a;if(gh>ga)return h;if(ga>gh)return a;return r.pw==="h"?h:r.pw==="a"?a:0}
+function koRes(k,h,a){var r=LG.results[k];if(!r||r.h==null||r.a==null)return null;if(h&&a&&r.th&&(+r.th!==+h||+r.ta!==+a))return null;return r}
+function koWinner(k,h,a){var r=koRes(k,h,a);if(!r||!h||!a)return 0;var gh=+r.h,ga=+r.a;if(gh>ga)return h;if(ga>gh)return a;return r.pw==="h"?h:r.pw==="a"?a:0}
 function bracket(){
   var st=standings().map(function(s){return s.t}),s=function(i){return st[i-1]||0},done=leagueDone(),M={};
   M.QA={k:"po-QA",lbl:"Cuartos A · 3º vs 6º",h:s(3),a:s(6)};
@@ -1835,7 +1835,7 @@ function bracket(){
     M.RB={k:"po-RB",lbl:"Descenso B · 9º vs 8º",h:s(8),a:s(9),rel:1};
     var lz=function(k,h,a){var w=koWinner(k,h,a);return w?(w===h?a:h):0};
     M.RF={k:"po-RF",lbl:"Final de descenso · el que pierde desciende",h:lz("po-RA",M.RA.h,M.RA.a),a:lz("po-RB",M.RB.h,M.RB.a),rel:1}}
-  Object.keys(M).forEach(function(n){var m=M[n];m.r=koRes(m.k);m.w=koWinner(m.k,m.h,m.a);m.ready=done&&!!m.h&&!!m.a});
+  Object.keys(M).forEach(function(n){var m=M[n];m.r=koRes(m.k,m.h,m.a);m.w=koWinner(m.k,m.h,m.a);m.ready=!!m.h&&!!m.a});
   var relegated=0;if(relOk&&M.RF.w)relegated=M.RF.w===M.RF.h?M.RF.a:M.RF.h;
   return{M:M,done:done,champ:M.F.w,seeds:st.slice(0,6),all:st,ok:st.length>=6,relOk:relOk,relegated:relegated}}
 function koOdds(h,a){var o=matchOdds(h,a,null),f=function(p){return Math.max(1.05,Math.round(100/(Math.max(p,0.02)*1.06))/100)};return{o1:f(o.p1+o.pX/2),o2:f(o.p2+o.pX/2)}}
@@ -1843,19 +1843,19 @@ function koCard(m,B){
   var seed=function(tm){var i=B.all.indexOf(tm);return i>-1?'<em class="sd">'+(i+1)+'º</em>':''};
   var row=function(tm,g){return '<div class="kt'+(m.w&&m.w===tm?" win":"")+'">'+(tm?seed(tm)+tnh(tm):'<span class="note">Por definir</span>')+(m.r?'<b>'+g+(m.r.pw&&+m.r.h===+m.r.a&&((m.r.pw==="h"&&tm===m.h)||(m.r.pw==="a"&&tm===m.a))?' <small>(pen.)</small>':'')+'</b>':'')+'</div>'};
   var mine=uid&&LG.bets[uid+"_"+m.k],odds="";
-  if(m.ready&&!m.r){var o=koOdds(m.h,m.a);odds='<div class="odds two">'+[["1","Local",o.o1],["2","Visita",o.o2]].map(function(x){return '<button type="button" class="od betable'+(mine&&mine.pick===x[0]?" mybet":"")+'" data-bet="'+m.k+'|'+m.h+'|'+m.a+'|'+x[0]+'|-1|1" title="Apostar puntos"><em>'+x[1]+'</em><b>'+x[2].toFixed(2)+'</b></button>'}).join("")+'</div>'}
+  if(m.ready&&B.done&&!m.r){var o=koOdds(m.h,m.a);odds='<div class="odds two">'+[["1","Local",o.o1],["2","Visita",o.o2]].map(function(x){return '<button type="button" class="od betable'+(mine&&mine.pick===x[0]?" mybet":"")+'" data-bet="'+m.k+'|'+m.h+'|'+m.a+'|'+x[0]+'|-1|1" title="Apostar puntos"><em>'+x[1]+'</em><b>'+x[2].toFixed(2)+'</b></button>'}).join("")+'</div>'}
   return '<div class="ko'+(m.k==="po-F"?" final":"")+'"><small class="kl">'+esc(m.lbl)+'</small>'+row(m.h,m.r?m.r.h:"")+row(m.a,m.r?m.r.a:"")+odds+
     '<div class="actions" style="margin-top:8px">'+(m.ready&&acc.st==="in"?'<button type="button" class="btn" data-pores="'+m.k+'|'+m.h+'|'+m.a+'|'+esc(m.lbl)+'">'+(m.r?"Editar resultado":"Cargar resultado")+'</button>':'<span class="note">'+(m.ready?"Inicia sesión para cargar":"Esperando rivales")+'</span>')+'</div></div>'}
 function poHTML(){
   var B=bracket();
   if(!B.ok)return '<p class="note">Los playoffs necesitan al menos 6 equipos activos.</p>';
   var M=B.M,h='<div class="panel"><p style="margin:0 0 6px"><b>Cómo funciona.</b> Clasifican los 6 primeros de la tabla. El 1º y el 2º esperan en semifinales; el 3º juega contra el 6º y el 4º contra el 5º. El ganador de 3º-6º va a la llave del 2º y el ganador de 4º-5º va a la llave del 1º. Si hay empate, se define por penales.</p>'+
-    '<p class="note" style="margin:0">'+(B.done?'La liga terminó: ya se pueden cargar los partidos de playoffs.':'Los cruces son provisorios hasta que termine la liga ('+FIX.length+' fechas). Hoy clasificarían:')+'</p>'+
+    '<p class="note" style="margin:0">'+(B.done?'La liga terminó: ya se pueden cargar los partidos de playoffs.':'La liga todavía no terminó ('+FIX.length+' fechas): los cruces son provisorios y se actualizan con la tabla. Ya puedes cargar resultados de playoffs; si un cruce cambia, su resultado deja de contar. Hoy clasificarían:')+'</p>'+
     '<div class="seeds">'+B.seeds.map(function(tm,i){return '<span class="seed">'+(i+1)+'º '+tnh(tm)+'</span>'}).join("")+'</div></div>';
   if(B.champ)h+='<div class="champ-banner">'+(crestOf(B.champ)?'<img src="'+crestOf(B.champ)+'" alt="">':'')+'<div><small>Campeón de la temporada</small><b>'+esc(teamName(B.champ))+'</b></div>'+(isAdmin&&!palmDone()?'<button type="button" class="btn primary" id="palmgo">Sumar título al palmarés</button>':'')+'</div>';
   h+='<div class="bk"><div class="bkc"><h3 class="sec">Cuartos</h3>'+koCard(M.QA,B)+koCard(M.QB,B)+'</div><div class="bkc"><h3 class="sec">Semifinales</h3>'+koCard(M.S1,B)+koCard(M.S2,B)+'</div><div class="bkc"><h3 class="sec">Final</h3>'+koCard(M.F,B)+'</div></div>';
   if(B.relOk){
-    h+='<h3 class="sec" style="margin-top:28px">Playoffs de descenso</h3><div class="panel"><p style="margin:0 0 6px"><b>Cómo funciona.</b> Juegan los puestos 7º al 10º: el 10º contra el 7º y el 9º contra el 8º. Los que ganan se salvan. Los que pierden juegan la final de descenso y el que pierde esa final desciende. Si hay empate, se define por penales.</p><p class="note" style="margin:0">'+(B.done?"La liga terminó: ya se pueden cargar los partidos.":"Los cruces son provisorios hasta que termine la liga.")+'</p></div>';
+    h+='<h3 class="sec" style="margin-top:28px">Playoffs de descenso</h3><div class="panel"><p style="margin:0 0 6px"><b>Cómo funciona.</b> Juegan los puestos 7º al 10º: el 10º contra el 7º y el 9º contra el 8º. Los que ganan se salvan. Los que pierden juegan la final de descenso y el que pierde esa final desciende. Si hay empate, se define por penales.</p><p class="note" style="margin:0">'+(B.done?"La liga terminó: ya se pueden cargar los partidos.":"Cruces provisorios: se actualizan con la tabla.")+'</p></div>';
     if(B.relegated)h+='<div class="champ-banner rel-banner">'+(crestOf(B.relegated)?'<img src="'+crestOf(B.relegated)+'" alt="">':'')+'<div><small>Desciende</small><b>'+esc(teamName(B.relegated))+'</b></div></div>';
     h+='<div class="bk"><div class="bkc"><h3 class="sec">Semifinales de descenso</h3>'+koCard(M.RA,B)+koCard(M.RB,B)+'</div><div class="bkc"><h3 class="sec">Final de descenso</h3>'+koCard(M.RF,B)+'</div></div>'}
   return h}
