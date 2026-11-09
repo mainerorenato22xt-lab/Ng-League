@@ -541,6 +541,16 @@ body.isdrag{cursor:grabbing;user-select:none;-webkit-user-select:none}body.isdra
 .rel-banner{background:color-mix(in srgb,var(--warn) 14%,transparent);border-color:var(--warn)}.rel-banner small{color:var(--warn,#b4412f)}
 .mini tr.z-po td:first-child{box-shadow:inset 3px 0 0 var(--ok,#2f7d5b)}.mini tr.z-rel td:first-child{box-shadow:inset 3px 0 0 var(--warn,#b4412f)}
 .zdot{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px}.zdot.po{background:var(--ok,#2f7d5b)}.zdot.rel{background:var(--warn,#b4412f)}
+.lt .mb{display:none}
+@media (max-width:600px){
+  .mini.lt{min-width:0}
+  .lt .dk{display:none}.lt .mb{display:table-cell;white-space:nowrap}
+  .lt th,.lt td{padding:8px 5px;font-size:13px}.lt th{font-size:10.5px;letter-spacing:.02em}
+  .lt th:first-child,.lt td:first-child{padding-left:8px;width:22px}.lt th:last-child,.lt td:last-child{padding-right:10px}
+  .lt .pname{min-width:0;line-height:1.2}.lt .pname .crest{width:20px;height:20px;margin-right:6px}.lt .pname .tk{display:none}
+  .lt td.num{font-variant-numeric:tabular-nums}
+}
+@media (max-width:380px){.lt th,.lt td{padding:7px 3px;font-size:12px}.lt th{font-size:9.5px}.lt .pname .crest{width:17px;height:17px;margin-right:4px}.lt .pname{white-space:normal}.lt th:first-child,.lt td:first-child{padding-left:6px;width:18px}}
 </style>
 
 <header class="bar"><div class="bar-in">
@@ -1552,8 +1562,8 @@ function oddsHTML(h,a,ri,r,bet){
   return '<div class="odds" title="Cuotas ficticias según la media de la plantilla y los últimos 5 partidos">'+c("1",o.o1,"Local")+c("X",o.oX,"Empate")+c("2",o.o2,"Visita")+'</div>'}
 function tablaHTML(){
   var st=standings(),played=st.some(function(s){return s.pj>0});
-  return '<div class="tablebox"><table class="mini"><thead><tr><th class="num">#</th><th>Equipo</th><th class="num">PJ</th><th class="num">G</th><th class="num">E</th><th class="num">P</th><th class="num">GF</th><th class="num">GC</th><th class="num">DG</th><th class="num">Pts</th></tr></thead><tbody>'+
-    st.map(function(s,i){return '<tr'+(i<6?' class="z-po"':(i>=6&&st.length>=10?' class="z-rel"':''))+'><td class="num">'+(i+1)+'</td><td class="pname">'+tnh(s.t)+(teamOwner[s.t]?'<small class="tk">'+esc(dtName(teamOwner[s.t]))+'</small>':'')+'</td><td class="num">'+s.pj+'</td><td class="num">'+s.g+'</td><td class="num">'+s.e+'</td><td class="num">'+s.p+'</td><td class="num">'+s.gf+'</td><td class="num">'+s.gc+'</td><td class="num">'+(s.gf-s.gc>0?"+":"")+(s.gf-s.gc)+'</td><td class="num"><b>'+s.pts+'</b></td></tr>'}).join("")+'</tbody></table></div>'+
+  return '<div class="tablebox"><table class="mini lt"><thead><tr><th class="num">#</th><th>Equipo</th><th class="num">PJ</th><th class="num dk">G</th><th class="num dk">E</th><th class="num dk">P</th><th class="num mb">G-E-P</th><th class="num dk">GF</th><th class="num dk">GC</th><th class="num">DG</th><th class="num">Pts</th></tr></thead><tbody>'+
+    st.map(function(s,i){return '<tr'+(i<6?' class="z-po"':(i>=6&&st.length>=10?' class="z-rel"':''))+'><td class="num">'+(i+1)+'</td><td class="pname">'+tnh(s.t)+(teamOwner[s.t]?'<small class="tk">'+esc(dtName(teamOwner[s.t]))+'</small>':'')+'</td><td class="num">'+s.pj+'</td><td class="num dk">'+s.g+'</td><td class="num dk">'+s.e+'</td><td class="num dk">'+s.p+'</td><td class="num mb">'+s.g+'-'+s.e+'-'+s.p+'</td><td class="num dk">'+s.gf+'</td><td class="num dk">'+s.gc+'</td><td class="num">'+(s.gf-s.gc>0?"+":"")+(s.gf-s.gc)+'</td><td class="num"><b>'+s.pts+'</b></td></tr>'}).join("")+'</tbody></table></div>'+
     '<p class="note" style="margin:10px 0 0"><span class="zdot po"></span> Clasifican a playoffs (1º a 6º) &nbsp; <span class="zdot rel"></span> Playoffs de descenso (7º a 10º)</p>'+(played?'':'<p class="note">Todavía no hay resultados cargados. Se cargan desde la pestaña Calendario.</p>')}
 function calHTML(){
   if(!selRound||selRound>FIX.length)selRound=firstOpenRound();
