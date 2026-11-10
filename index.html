@@ -958,6 +958,7 @@ function clean(d){
   for(var i=0;i<NS;i++)o.s.push(ok(src[i])?src[i]:null);
   for(var b=0;b<NB;b++){var id=d&&Array.isArray(d.bench)?d.bench[b]:null;o.bench.push(ok(id)?id:null)}
   o.pos=[];for(var q=0;q<NS;q++){var pp=d&&d.form===f&&Array.isArray(d.pos)?d.pos[q]:null;o.pos.push(Array.isArray(pp)&&isFinite(pp[0])&&isFinite(pp[1])?[Math.max(5,Math.min(95,+pp[0])),Math.max(4,Math.min(96,+pp[1]))]:null)}
+  o.sp=[];for(var q2=0;q2<NS;q2++){var sv=d&&d.form===f&&Array.isArray(d.sp)?d.sp[q2]:null;o.sp.push(sv!==null&&sv!==undefined&&isFinite(sv)&&+sv>=0&&+sv<13&&+sv===Math.round(+sv)&&+sv!==FORM[f][q2][0]?+sv:null)}
   o.status=d&&d.status==="entregada"?"entregada":"borrador";o.ts={};o.upd=d&&+d.upd>0?+d.upd:0;
   if(d&&d.ts&&typeof d.ts==="object")o.s.concat(o.bench).forEach(function(id){if(id&&+d.ts[id]>0)o.ts[id]=+d.ts[id]});
   return o}
@@ -967,6 +968,8 @@ var sqOwner="";try{sqOwner=localStorage.getItem("plantilla-owner")||""}catch(e){
 function localSave(){try{localStorage.setItem("plantilla-v1",JSON.stringify(sq));localStorage.setItem("plantilla-owner",sqOwner)}catch(e){}}
 function hasContent(s){return s.s.some(Boolean)||s.bench.some(Boolean)}
 function lu(){return sq.s}
+function spos(i){var v=sq.sp&&sq.sp[i];return (v===null||v===undefined)?FORM[sq.form][i][0]:v}
+function dpos(d,f,i){var v=d&&d.sp&&d.form===f?d.sp[i]:null;return (v===null||v===undefined)?FORM[f][i][0]:v}
 function usedIds(){var u={};lu().concat(sq.bench).forEach(function(id){if(id)u[id]=1});return u}
 function short(n){var w=n.split(" ");return w.length>1?w[w.length-1]:n}
 $("form").innerHTML=Object.keys(FORM).map(function(f){return '<option value="'+f+'">'+f+'</option>'}).join("");
@@ -975,7 +978,7 @@ function reassign(nf){
   var slots=FORM[nf],ns=new Array(NS).fill(null),pool=sq.s.filter(Boolean);
   var take=function(test){slots.forEach(function(sl,i){if(ns[i])return;for(var k=0;k<pool.length;k++){if(test(byId[pool[k]],sl[0])){ns[i]=pool[k];pool.splice(k,1);return}}})};
   take(function(p,pos){return p.p===pos});take(compat);take(function(){return true});
-  sq.form=nf;sq.s=ns;sq.pos=[]}
+  sq.form=nf;sq.s=ns;sq.pos=[];sq.sp=[]}
 $("form").addEventListener("change",function(){var bl=editBlock("form");if(bl){toast(bl);$("form").value=sq.form;return};reassign($("form").value);sqSave();renderSquad()});
 
 var popIdx=[];
@@ -983,8 +986,8 @@ function renderSquad(){
   var slots=FORM[sq.form],L=lu(),sel=[];
   $("slots").innerHTML=slots.map(function(s,i){
     var p=L[i]?byId[L[i]]:null;if(p)sel.push(p);
-    return '<button type="button" class="slot'+(p?"":" empty")+'" data-s="'+i+'" style="left:'+((sq.pos&&sq.pos[i])?sq.pos[i][0]:s[1])+'%;top:'+((sq.pos&&sq.pos[i])?sq.pos[i][1]:s[2])+'%" aria-label="'+POSL[s[0]]+(p?": "+esc(p.n):": vacío")+'">'+
-      '<span class="sbody">'+(p?'<span class="sovr">'+p.o+'</span><span class="sname">'+esc(short(p.n))+'</span>':'<span class="splus">+</span>')+'</span><span class="spos">'+POSN[s[0]]+'</span></button>'}).join("");
+    return '<button type="button" class="slot'+(p?"":" empty")+'" data-s="'+i+'" style="left:'+((sq.pos&&sq.pos[i])?sq.pos[i][0]:s[1])+'%;top:'+((sq.pos&&sq.pos[i])?sq.pos[i][1]:s[2])+'%" aria-label="'+POSL[spos(i)]+(p?": "+esc(p.n):": vacío")+'">'+
+      '<span class="sbody">'+(p?'<span class="sovr">'+p.o+'</span><span class="sname">'+esc(short(p.n))+'</span>':'<span class="splus">+</span>')+'</span><span class="spos">'+POSN[spos(i)]+'</span></button>'}).join("");
   var bh="";for(var b=0;b<NB;b++){var bp=sq.bench[b]?byId[sq.bench[b]]:null;if(bp)sel.push(bp);
     bh+='<button type="button" class="bslot'+(bp?" has":"")+'" data-b="'+b+'">'+(bp?'<span class="ovr '+tier(bp.o)+'">'+bp.o+'</span><span style="min-width:0"><span class="bn">'+esc(bp.n)+'</span><span class="bm">'+POSN[bp.p]+' · '+bp.a+' años</span></span>':'<span class="note">+ Suplente '+(b+1)+'</span>')+'</button>'}
   $("bench").innerHTML=bh;
@@ -1021,18 +1024,19 @@ function dragEnd(commit,e){
   var tgt=null;if(d.ghost!==undefined){var el=document.elementFromPoint(e.clientX,e.clientY);tgt=el&&el.closest(".slot,.bslot");if(tgt===d.src.el)tgt=null}
   if(tgt){
     var to=tgt.classList.contains("slot")?{t:"s",i:+tgt.dataset.s}:{t:"b",i:+tgt.dataset.b};
-    var a=getCur({t:d.src.t,i:d.src.i}),b=getCur(to);if(!a&&!b)return;
-    var bl=editBlock(a&&b?"swap":"add");if(bl){toast(bl);return}
-    var setv=function(tg,v){if(tg.t==="s")lu()[tg.i]=v;else sq.bench[tg.i]=v};
-    setv({t:d.src.t,i:d.src.i},b||null);setv(to,a||null);
-    [[d.src,a],[to,b]].forEach(function(x){});
-    var warn=function(tg,id){if(tg.t!=="s"||!id)return "";var p=byId[id],pos=FORM[sq.form][tg.i][0];return compat(p,pos)?"":p.n+" juega fuera de posición. "};
-    var w=warn(to,a)+warn({t:d.src.t,i:d.src.i},b);if(w)toast(w.trim());
-    popIdx=[{t:d.src.t,i:d.src.i},to];sqSave();renderSquad();return}
+    swapSlots({t:d.src.t,i:d.src.i},to);return}
   var pr=$("pitch").getBoundingClientRect();
   if(d.src.t==="s"&&e.clientX>=pr.left&&e.clientX<=pr.right&&e.clientY>=pr.top&&e.clientY<=pr.bottom){
     var x=Math.max(8,Math.min(92,(e.clientX-pr.left)/pr.width*100)),y=Math.max(6,Math.min(94,(e.clientY-pr.top)/pr.height*100));
     sq.pos=sq.pos||[];sq.pos[d.src.i]=[Math.round(x*10)/10,Math.round(y*10)/10];popIdx=[{t:"s",i:d.src.i}];sqSave();renderSquad()}}
+function swapSlots(src,to){
+  var a=getCur(src),b=getCur(to);if(!a&&!b)return false;
+  var bl=editBlock(a&&b?"swap":"add");if(bl){toast(bl);return false}
+  var setv=function(tg,v){if(tg.t==="s")lu()[tg.i]=v;else sq.bench[tg.i]=v};
+  setv(src,b||null);setv(to,a||null);
+  var warn=function(tg,id){if(tg.t!=="s"||!id)return "";var p=byId[id];return compat(p,spos(tg.i))?"":p.n+" juega fuera de posición. "};
+  var w=warn(to,a)+warn(src,b);if(w)toast(w.trim());
+  popIdx=[src,to];sqSave();renderSquad();return true}
 function dragMove(e){
   if(!DRAG)return;
   if(!DRAG.on){var dx=e.clientX-DRAG.x,dy=e.clientY-DRAG.y;if(Math.hypot(dx,dy)<8)return;
@@ -1061,13 +1065,20 @@ function setCur(tg,id){
   sqSave();renderSquad();if(id&&!old&&byId[id])afterAdd(byId[id]);if(!id&&old&&byId[old])afterRemove(byId[old]);return true}
 function compat(p,pos){return pos===null||p.p===pos||+p.pr[pos]>0}
 var pk={tg:null,q:"",all:false};
+function swapHTML(tg){
+  var h='<details class="swapbox" style="margin-top:10px"><summary class="note" style="cursor:pointer">Mover o intercambiar de lugar</summary><div id="swl" class="swaplist" style="display:grid;gap:6px;margin-top:8px">';
+  lu().forEach(function(id,i){if(tg.t==="s"&&tg.i===i)return;var p=id?byId[id]:null;h+='<button type="button" class="btn" data-st="s" data-si="'+i+'" style="text-align:left">Titular · '+POSN[spos(i)]+' · '+(p?esc(p.n):'vacío')+'</button>'});
+  sq.bench.forEach(function(id,i){if(tg.t==="b"&&tg.i===i)return;var p=id?byId[id]:null;h+='<button type="button" class="btn" data-st="b" data-si="'+i+'" style="text-align:left">Suplente '+(i+1)+' · '+(p?esc(p.n):'vacío')+'</button>'});
+  return h+'</div></details>'}
 function openPicker(tg){
   var bl0=getCur(tg)?null:editBlock("add");if(bl0){toast(bl0);return}
   pk={tg:tg,q:"",all:false};
-  var pos=tg.t==="s"?FORM[sq.form][tg.i][0]:null,cur=getCur(tg),cp=cur?byId[cur]:null;
+  var pos=tg.t==="s"?spos(tg.i):null,cur=getCur(tg),cp=cur?byId[cur]:null;
   $("drawer").innerHTML='<div class="dhead"><div><h2 id="dname">'+(pos===null?"Suplente "+(tg.i+1):POSL[pos])+'</h2><p class="dmeta">'+(cp?"Ahora: "+esc(cp.n):"Elige un jugador")+'</p></div><button class="close" type="button" id="dclose">Cerrar</button></div>'+
     '<div class="field" style="margin-top:16px"><label for="pq">Buscar por nombre</label><input id="pq" type="search" autocomplete="off" placeholder="Ej: Courtois"></div>'+
     (pos===null?'':'<label class="note" style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="pall"> Mostrar jugadores de todas las posiciones</label>')+
+    (tg.t==="s"?'<div class="field" style="margin-top:10px"><label for="pslot">Posición de este puesto</label><select id="pslot">'+POSL.map(function(n,k){return '<option value="'+k+'"'+(k===pos?" selected":"")+'>'+n+(k===FORM[sq.form][tg.i][0]?" (original)":"")+'</option>'}).join("")+'</select></div>':'')+
+    (cur?swapHTML(tg):'')+
     (cp?'<div class="actions" style="margin-top:10px"><button class="btn dangerbtn" type="button" id="prem">'+(fichOpen()&&myTeam?'Vender al club (+'+fmtM(saleValue(cp))+' M)':'Quitar de la plantilla')+'</button></div>':'')+
     '<div class="plist" id="plist"></div>';
   lastFocus=document.activeElement;$("overlay").hidden=false;$("pq").focus();
@@ -1075,6 +1086,12 @@ function openPicker(tg){
   $("pq").addEventListener("input",function(){pk.q=$("pq").value;fillPicker()});
   if($("pall"))$("pall").addEventListener("change",function(){pk.all=$("pall").checked;fillPicker()});
   if($("prem"))$("prem").onclick=function(){setCur(tg,null);close()};
+  if($("pslot"))$("pslot").addEventListener("change",function(){
+    var bl=editBlock("form");if(bl){toast(bl);$("pslot").value=spos(tg.i);return}
+    var v=+$("pslot").value;sq.sp=sq.sp||[];sq.sp[tg.i]=v===FORM[sq.form][tg.i][0]?null:v;sqSave();renderSquad();
+    $("dname").textContent=POSL[v];var cu=getCur(tg),pc=cu?byId[cu]:null;if(pc&&!compat(pc,v))toast(pc.n+" juega fuera de posición en este puesto.");fillPicker()});
+  if($("swl"))$("swl").addEventListener("click",function(e){var b=e.target.closest("[data-st]");if(!b)return;
+    if(swapSlots(tg,{t:b.dataset.st,i:+b.dataset.si}))close()});
   $("plist").addEventListener("click",function(e){var b=e.target.closest(".pitem");if(!b)return;
     var g=gate(byId[+b.dataset.id],cur);if(g){toast(g.m);return}
     setCur(tg,+b.dataset.id);close()});
@@ -1082,7 +1099,7 @@ function openPicker(tg){
 }
 function fillPicker(){
   if(fichOpen()&&myTeam&&getCur(pk.tg)){$("plist").innerHTML='<div class="empty">En la ventana de fichajes, para cambiar a este jugador primero véndelo al club.</div>';return}
-  var tg=pk.tg,pos=tg.t==="s"?FORM[sq.form][tg.i][0]:null,u=usedIds(),cur=getCur(tg),q=norm(pk.q);
+  var tg=pk.tg,pos=tg.t==="s"?spos(tg.i):null,u=usedIds(),cur=getCur(tg),q=norm(pk.q);
   var res=P.filter(function(p){
     if(p.k===null)return false;
     if(u[p.id]&&p.id!==cur)return false;
@@ -1101,9 +1118,9 @@ function addToSquad(p){
   var g=gate(p,0);if(g){toast(g.m);return}
   var S=FORM[sq.form],L=lu(),i=-1,k;
   var stamp=function(){sq.ts=sq.ts||{};sq.ts[p.id]=Date.now()};
-  for(k=0;k<S.length;k++)if(!L[k]&&S[k][0]===p.p){i=k;break}
-  if(i<0)for(k=0;k<S.length;k++)if(!L[k]&&compat(p,S[k][0])){i=k;break}
-  if(i>=0){L[i]=p.id;stamp();sqSave();renderSquad();toast(p.n+" agregado como "+POSN[S[i][0]]+".");afterAdd(p);return}
+  for(k=0;k<S.length;k++)if(!L[k]&&spos(k)===p.p){i=k;break}
+  if(i<0)for(k=0;k<S.length;k++)if(!L[k]&&compat(p,spos(k))){i=k;break}
+  if(i>=0){L[i]=p.id;stamp();sqSave();renderSquad();toast(p.n+" agregado como "+POSN[spos(i)]+".");afterAdd(p);return}
   for(k=0;k<NB;k++)if(!sq.bench[k]){sq.bench[k]=p.id;stamp();sqSave();renderSquad();toast(p.n+" agregado a suplentes.");afterAdd(p);return}
   toast("Tu plantilla está completa. Quita un jugador primero.");
 }
@@ -1112,7 +1129,7 @@ $("qclear").onclick=function(){var b=$("qclear");if(!b.dataset.sure){b.dataset.s
   var f0=sq.form;sq=clean(null);sq.form=f0;sqSave();renderSquad();delete b.dataset.sure;b.textContent="Vaciar plantilla"};
 $("qcopy").onclick=function(){
   var S=FORM[sq.form],L=lu(),l=["Formación "+sq.form+" · "+fmtM(spentNow())+" M de "+fmtM(RULES.budget)+" M"];
-  S.forEach(function(s,i){var p=L[i]?byId[L[i]]:null;l.push(POSN[s[0]]+": "+(p?p.n+" ("+p.o+", "+(p.k?fmtM(p.k)+" M":"gratis")+")":"—"))});
+  S.forEach(function(s,i){var p=L[i]?byId[L[i]]:null;l.push(POSN[spos(i)]+": "+(p?p.n+" ("+p.o+", "+(p.k?fmtM(p.k)+" M":"gratis")+")":"—"))});
   l.push("Suplentes:");for(var b=0;b<NB;b++){var p=sq.bench[b]?byId[sq.bench[b]]:null;l.push("- "+(p?p.n+" ("+POSN[p.p]+", "+p.o+", "+(p.k?fmtM(p.k)+" M":"gratis")+")":"—"))}
   try{navigator.clipboard.writeText(l.join("\n")).then(function(){toast("Plantilla copiada.")},function(){toast("No se pudo copiar.")})}catch(e){toast("No se pudo copiar.")}};
 // ===== cuenta y guardado =====
@@ -1282,7 +1299,7 @@ function trId(pfx){return pfx+Date.now().toString(36)+Math.floor(Math.random()*1
 function trSet(doc,onFail){var id=trId(doc.kind==="oferta"?"o":"t");doc.win=LG.fich.at;doc.ts=Date.now();LG.tr[id]=doc;
   if(trCol)trCol.doc(id).set(doc).catch(function(){delete LG.tr[id];if(onFail)onFail();else{renderLeague();toast("No se pudo registrar el movimiento.")}});return id}
 function dropFromSq(id){for(var i=0;i<sq.s.length;i++)if(sq.s[i]===id)sq.s[i]=null;for(var j=0;j<sq.bench.length;j++)if(sq.bench[j]===id)sq.bench[j]=null;if(sq.ts)delete sq.ts[id]}
-function putInSq(p){var S=FORM[sq.form],L=lu(),i=-1,k;for(k=0;k<S.length;k++)if(!L[k]&&S[k][0]===p.p){i=k;break}if(i<0)for(k=0;k<S.length;k++)if(!L[k]&&compat(p,S[k][0])){i=k;break}if(i>=0){L[i]=p.id;return true}for(k=0;k<NB;k++)if(!sq.bench[k]){sq.bench[k]=p.id;return true}return false}
+function putInSq(p){var S=FORM[sq.form],L=lu(),i=-1,k;for(k=0;k<S.length;k++)if(!L[k]&&spos(k)===p.p){i=k;break}if(i<0)for(k=0;k<S.length;k++)if(!L[k]&&compat(p,spos(k))){i=k;break}if(i>=0){L[i]=p.id;return true}for(k=0;k<NB;k++)if(!sq.bench[k]){sq.bench[k]=p.id;return true}return false}
 function afterAdd(p){if(fichOpen()&&myTeam&&p){trSet({kind:"fichaje",team:myTeam,player:p.id,amount:p.k||0},function(){dropFromSq(p.id);sqSave();renderSquad();renderLeague();toast("No se pudo registrar el fichaje de "+p.n+": se canceló y no se descontó dinero.")});renderLeague()}}
 function afterRemove(p){if(fichOpen()&&myTeam&&p){trSet({kind:"libre",team:myTeam,player:p.id,amount:saleValue(p)},function(){putInSq(p);sqSave();renderSquad();renderLeague();toast("No se pudo registrar la venta de "+p.n+": volvió a tu plantilla.")});renderLeague();toast(p.n+" vendido al club: entran "+fmtM(saleValue(p))+" M.")}}
 function fmtLeft(ms){var m=Math.max(0,Math.floor(ms/60000)),d=Math.floor(m/1440),h=Math.floor(m%1440/60),mi=m%60;return d?d+" d "+h+" h":h?h+" h "+mi+" min":mi+" min"}
@@ -1321,7 +1338,7 @@ function startLeague(db){
 function clearLeague(){
   LG={hist:{},bets:{},votes:{},clubs:{},clasicos:{list:[]},premios:{closed:false},palm:{extra:{},last:0,seasons:[]},season:{n:8,since:0},seasons:{},money:{league:[24,21.6,19.2,16.8,14.4,12,9.6,7.2,4.8,2.4],po:[16,12.8,9.6,6.4,0]},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{},prizes:{},season:0},market:{closed:false,deadline:null}};
   seasRef=seasCol=moneyRef=betsCol=votesCol=clubsCol=clasRef=premRef=palmRef=postsCol=histCol=claimsCol=squadsCol=resCol=trCol=mktRef=fichRef=teamsRef=null;recompute();renderLeague();run()}
-function pubBody(){return JSON.parse(JSON.stringify({team:myTeam,form:sq.form,s:sq.s,bench:sq.bench,pos:sq.pos||[],ts:sq.ts,status:sq.status,cost:spentNow(),upd:Date.now()}))}
+function pubBody(){return JSON.parse(JSON.stringify({team:myTeam,form:sq.form,s:sq.s,bench:sq.bench,pos:sq.pos||[],sp:sq.sp||[],ts:sq.ts,status:sq.status,cost:spentNow(),upd:Date.now()}))}
 
 
 function enterView(v){
@@ -1460,8 +1477,8 @@ function applyIncoming(){
   myOut().filter(function(x){return x.status==="aceptada"&&!x.applied&&!applying[x.id]}).forEach(function(x){
     var p=byId[x.player];if(!p)return;
     var S=FORM[sq.form],L=lu(),i=-1,k;
-    for(k=0;k<S.length;k++)if(!L[k]&&S[k][0]===p.p){i=k;break}
-    if(i<0)for(k=0;k<S.length;k++)if(!L[k]&&compat(p,S[k][0])){i=k;break}
+    for(k=0;k<S.length;k++)if(!L[k]&&spos(k)===p.p){i=k;break}
+    if(i<0)for(k=0;k<S.length;k++)if(!L[k]&&compat(p,spos(k))){i=k;break}
     var placed=false;
     if(i>=0){L[i]=p.id;placed=true}else for(k=0;k<NB;k++)if(!sq.bench[k]){sq.bench[k]=p.id;placed=true;break}
     if(!placed){if(!warned[x.id]){warned[x.id]=1;toast("Aceptaron tu oferta por "+p.n+". Vende a un jugador para hacerle lugar.")}return}
@@ -1536,7 +1553,7 @@ $("teamsbody").addEventListener("click",function(e){var x=e.target.closest("[dat
 function openTeam(t){
   var s=teamSummary(t),d=s.d,form=d&&FORM[d.form]?d.form:"4-3-3",rows="";
   var line=function(id,pos){var p=byId[id];return p?'<div class="trow"><span class="ovr '+tier(p.o)+'">'+p.o+'</span><span class="tn"><b>'+esc(p.n)+'</b><small>'+POSN[p.p]+' · '+esc(cname(p.c))+' · '+p.a+' años</small></span><span class="tpos">'+pos+'</span><span class="cost">'+(p.o===RULES.star?"Figura":fmtM(p.k||0)+" M")+'</span></div>':'<div class="trow empty"><span class="note">'+pos+' · vacío</span></div>'};
-  if(d){rows='<h3 class="sec">Titulares · '+form+'</h3>';for(var i=0;i<NS;i++)rows+=line((d.s||[])[i],POSN[FORM[form][i][0]]);
+  if(d){rows='<h3 class="sec">Titulares · '+form+'</h3>';for(var i=0;i<NS;i++)rows+=line((d.s||[])[i],POSN[dpos(d,form,i)]);
     rows+='<h3 class="sec">Suplentes</h3>';for(var b=0;b<NB;b++)rows+=line((d.bench||[])[b],"SUP")}
   else rows='<p class="note" style="margin-top:16px">Todavía no hay plantilla para mostrar.</p>';
   $("drawer").innerHTML='<div class="dhead"><div><h2 id="dname">'+tnh(t)+'</h2><p class="dmeta">'+esc(dtName(s.u))+'</p></div><button class="close" type="button" id="dclose">Cerrar</button></div>'+clubBlock(t)+
@@ -1740,7 +1757,7 @@ function squadLines(){
   l.push("*"+title+"* · "+sq.form);
   l.push("Presupuesto "+fmtM(spentNow())+" M de "+fmtM(RULES.budget)+" M"+(sel.length?" · Media "+(so/sel.length).toFixed(1):""));
   l.push("","*Titulares*");
-  S.forEach(function(s,i){var p=sq.s[i]?byId[sq.s[i]]:null;l.push(POSN[s[0]]+"  "+(p?p.n+" ("+p.o+")":"—"))});
+  S.forEach(function(s,i){var p=sq.s[i]?byId[sq.s[i]]:null;l.push(POSN[spos(i)]+"  "+(p?p.n+" ("+p.o+")":"—"))});
   l.push("","*Suplentes*");
   for(var b=0;b<NB;b++){var p=sq.bench[b]?byId[sq.bench[b]]:null;l.push((b+1)+". "+(p?p.n+" · "+POSN[p.p]+" ("+p.o+")":"—"))}
   return l}
@@ -1771,7 +1788,7 @@ function squadCanvas(){
       x.fillStyle="#12161c";x.textAlign="center";x.font="800 38px "+F;x.fillText(String(p.o),cx,cy-2);
       x.font="600 22px "+F;var nm=short(p.n);if(nm.length>13)nm=nm.slice(0,12)+"…";x.fillText(nm,cx,cy+28)}
     else{x.fillStyle="rgba(255,255,255,.16)";rr(x,cx-w/2,cy-h/2,w,h,14);x.fill();x.setLineDash([8,6]);x.strokeStyle="rgba(255,255,255,.7)";x.lineWidth=2;x.stroke();x.setLineDash([])}
-    x.fillStyle="#ffffff";x.font="700 22px "+F;x.textAlign="center";x.fillText(POSN[s[0]],cx,cy+h/2+26)});
+    x.fillStyle="#ffffff";x.font="700 22px "+F;x.textAlign="center";x.fillText(POSN[spos(i)],cx,cy+h/2+26)});
   x.textAlign="left";x.fillStyle="#93a0b0";x.font="700 24px "+F;x.fillText("SUPLENTES",60,1296);
   var bw=(960-6*10)/7;
   for(var b=0;b<NB;b++){var p=sq.bench[b]?byId[sq.bench[b]]:null,bx=60+b*(bw+10),by=1316;
