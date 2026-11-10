@@ -352,6 +352,10 @@ h1{font-family:var(--fd);font-style:italic;text-transform:uppercase;font-size:cl
   .accpanel:not([hidden]){animation:rise .2s ease both}
 }
 .ofrow{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0}.ofrow small{display:block;color:var(--muted);font-size:12.5px}.oact{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.ofcard{padding:10px 0;border-top:1px solid var(--line)}.ofcard:first-of-type{border-top:0}
+.ofhist{margin:2px 0 0;padding:0;list-style:none;font-size:12.5px;color:var(--muted)}.ofhist li{margin:2px 0}.ofhist q{color:var(--fg);quotes:none}
+.slot.onloan .spos::after{content:" · P"}.bslot.onloan{border-color:var(--accent)}
+.loanrow small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
 .offerbtn{width:auto;padding:0 10px;font-size:12px;font-weight:700;white-space:nowrap}
 .mini tr.hid td{opacity:.5}.addteam{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end}@media (max-width:700px){.addteam{grid-template-columns:1fr}}
 
@@ -656,6 +660,7 @@ body.isdrag{cursor:grabbing;user-select:none;-webkit-user-select:none}body.isdra
     <div class="side">
       <div class="panel" id="teambox"></div>
       <div class="panel" id="fichbox" hidden></div>
+      <div class="panel" id="loanbox" hidden></div>
       <div class="panel" id="rulesbox"></div>
       <div class="panel field"><label for="form">Formación</label><select id="form"></select><p class="note dragnote">Arrastra un jugador sobre otro para intercambiarlos, o sobre la cancha para ubicarlo donde quieras. <button type="button" class="linkbtn" id="posreset" hidden>Restablecer posiciones</button></p></div>
       <div>
@@ -869,8 +874,13 @@ recomputePrices();
 var DEFMONEY={league:[24,21.6,19.2,16.8,14.4,12,9.6,7.2,4.8,2.4],po:[16,12.8,9.6,6.4,0]};
 function fmtM(x){return (Math.round(x*10)/10).toString().replace(".",",")}
 function costTxt(p){return p.k===null?'<span class="note">No elegible</span>':p.k===0?'Gratis':fmtM(p.k)+' M'}
+function loanList(){return Object.keys(LG.loans||{}).map(function(k){return Object.assign({id:k},LG.loans[k])}).filter(function(l){return l&&l.player})}
+function loanActive(l){return l.status==="activo"||l.status==="devolviendo"}
+function loanFor(pid){var r=null;loanList().forEach(function(l){if(+l.player===+pid&&loanActive(l))r=l});return r}
+function loanAdj(tm){var a=0;if(!tm)return 0;loanList().forEach(function(l){if(!loanActive(l))return;var k=byId[l.player]?(byId[l.player].k||0):0;if(+l.owner===tm)a+=k;if(+l.borrower===tm&&l.status==="activo")a-=k});return a}
+function isBorrowed(pid){var l=loanFor(pid);return !!(l&&l.status==="activo"&&myTeam&&+l.borrower===myTeam)}
 function squadPlayers(){var ids=sq.s.concat(sq.bench),o=[];ids.forEach(function(id){if(id&&byId[id])o.push(byId[id])});return o}
-function spentNow(){var s=0;squadPlayers().forEach(function(p){s+=p.k||0});return s}
+function spentNow(){var s=0;squadPlayers().forEach(function(p){s+=p.k||0});return s+(myTeam?loanAdj(myTeam):0)}
 // devuelve null si se puede fichar, o {m: motivo largo, s: motivo corto}; "repl" es el jugador que se reemplaza
 function gate(p,repl){
   if(p.k===null)return{m:p.n+" no es elegible: supera los "+RULES.star+" de media.",s:"No elegible"};
@@ -879,6 +889,7 @@ function gate(p,repl){
   squadPlayers().forEach(function(q){if(q.id===repl)return;spent+=q.k||0;if(q.o===RULES.star)stars++});
   if(p.o===RULES.star&&stars>=1)return{m:"Ya tienes tu jugador de "+RULES.star+". Solo se permite uno.",s:"Ya tienes un "+RULES.star};
   if(fichOpen()&&myTeam){var cs=cashOf(myTeam);if(p.k>cs+1e-9)return{m:"No te alcanza: "+p.n+" cuesta "+fmtM(p.k)+" M y tu saldo es "+fmtM(cs)+" M.",s:"No alcanza"};return null}
+  if(myTeam)spent+=loanAdj(myTeam);
   if(spent+p.k>RULES.budget+1e-9)return{m:"No te alcanza: "+p.n+" cuesta "+fmtM(p.k)+" M y te quedan "+fmtM(RULES.budget-spent)+" M.",s:"No alcanza"};
   return null}
 var isAdmin=false,rulesRef=null;
@@ -893,6 +904,7 @@ function renderRules(){
   var wasOpen=$("rdet")?$("rdet").open:false;
   var sel=squadPlayers(),spent=0,stars=0,banned=0;
   sel.forEach(function(p){if(p.k===null)banned++;else spent+=p.k;if(p.o===RULES.star)stars++});
+  if(myTeam)spent+=loanAdj(myTeam);
   if(fichOpen()&&myTeam)spent=RULES.budget-cashOf(myTeam);
   var total=FORM[sq.form].length+NB,n=sel.length,left=RULES.budget-spent,over=left<-1e-9;
   var pct=RULES.budget?Math.min(100,Math.max(0,spent/RULES.budget*100)):0;
@@ -963,13 +975,13 @@ $("form").addEventListener("change",function(){var bl=editBlock("form");if(bl){t
 
 var popIdx=[];
 function renderSquad(){
-  var slots=FORM[sq.form],L=lu(),sel=[];
+  var slots=FORM[sq.form],L=lu(),sel=[],LI={};loanList().forEach(function(l){if(l.status==="activo"&&myTeam&&+l.borrower===myTeam)LI[l.player]=1});
   $("slots").innerHTML=slots.map(function(s,i){
     var p=L[i]?byId[L[i]]:null;if(p)sel.push(p);
-    return '<button type="button" class="slot'+(p?"":" empty")+'" data-s="'+i+'" style="left:'+((sq.pos&&sq.pos[i])?sq.pos[i][0]:s[1])+'%;top:'+((sq.pos&&sq.pos[i])?sq.pos[i][1]:s[2])+'%" aria-label="'+POSL[spos(i)]+(p?": "+esc(p.n):": vacío")+'">'+
+    return '<button type="button" class="slot'+(p?"":" empty")+(p&&LI[p.id]?" onloan":"")+'" data-s="'+i+'" style="left:'+((sq.pos&&sq.pos[i])?sq.pos[i][0]:s[1])+'%;top:'+((sq.pos&&sq.pos[i])?sq.pos[i][1]:s[2])+'%" aria-label="'+POSL[spos(i)]+(p?": "+esc(p.n):": vacío")+'">'+
       '<span class="sbody">'+(p?'<span class="sovr">'+p.o+'</span><span class="sname">'+esc(short(p.n))+'</span>':'<span class="splus">+</span>')+'</span><span class="spos">'+POSN[spos(i)]+'</span></button>'}).join("");
   var bh="";for(var b=0;b<NB;b++){var bp=sq.bench[b]?byId[sq.bench[b]]:null;if(bp)sel.push(bp);
-    bh+='<button type="button" class="bslot'+(bp?" has":"")+'" data-b="'+b+'">'+(bp?'<span class="ovr '+tier(bp.o)+'">'+bp.o+'</span><span style="min-width:0"><span class="bn">'+esc(bp.n)+'</span><span class="bm">'+POSN[bp.p]+' · '+bp.a+' años</span></span>':'<span class="note">+ Suplente '+(b+1)+'</span>')+'</button>'}
+    bh+='<button type="button" class="bslot'+(bp?" has":"")+(bp&&LI[bp.id]?" onloan":"")+'" data-b="'+b+'">'+(bp?'<span class="ovr '+tier(bp.o)+'">'+bp.o+'</span><span style="min-width:0"><span class="bn">'+esc(bp.n)+'</span><span class="bm">'+POSN[bp.p]+' · '+bp.a+' años'+(LI[bp.id]?' · Préstamo':'')+'</span></span>':'<span class="note">+ Suplente '+(b+1)+'</span>')+'</button>'}
   $("bench").innerHTML=bh;
   var n=sel.length,so=0,sa=0;sel.forEach(function(p){so+=p.o;sa+=p.a});
   $("qCount").textContent=n+"/"+(slots.length+NB);
@@ -1040,6 +1052,7 @@ function getCur(tg){return tg.t==="s"?lu()[tg.i]:sq.bench[tg.i]}
 function setCur(tg,id){
   var old=tg.t==="s"?lu()[tg.i]:sq.bench[tg.i];
   var bl=editBlock(id?"add":"remove");if(bl){toast(bl);return false}
+  if(old&&old!==id&&isBorrowed(old)){toast("Ese jugador está a préstamo: no se puede vender ni cambiar hasta que termine.");return false}
   if(tg.t==="s")lu()[tg.i]=id;else sq.bench[tg.i]=id;
   if(id){sq.ts=sq.ts||{};if(!sq.ts[id])sq.ts[id]=Date.now()}
   sqSave();renderSquad();if(id&&!old&&byId[id])afterAdd(byId[id]);if(!id&&old&&byId[old])afterRemove(byId[old]);return true}
@@ -1226,9 +1239,9 @@ function cleanTeams(d){
   base.forEach(function(b){if(!seen[b.id])out.push(b)});
   return out.sort(function(a,b){return a.id-b.id})}
 function refreshTeams(){ACT=TLIST.filter(function(x){return x.active}).map(function(x){return x.id});NT=ACT.length;FIX=buildFixture()}
-var LG={hist:{},bets:{},votes:{},clubs:{},clasicos:{list:[]},premios:{closed:false},palm:{extra:{},last:0,seasons:[]},season:{n:8,since:0},seasons:{},money:{league:[24,21.6,19.2,16.8,14.4,12,9.6,7.2,4.8,2.4],po:[16,12.8,9.6,6.4,0]},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{},prizes:{},season:0},market:{closed:false,deadline:null}};
+var LG={hist:{},bets:{},votes:{},clubs:{},clasicos:{list:[]},premios:{closed:false},palm:{extra:{},last:0,seasons:[]},season:{n:8,since:0},seasons:{},loans:{},money:{league:[24,21.6,19.2,16.8,14.4,12,9.6,7.2,4.8,2.4],po:[16,12.8,9.6,6.4,0]},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{},prizes:{},season:0},market:{closed:false,deadline:null}};
 var names={},nameKey="",teamOwner={},myTeam=0,taken={},claimLost=false;
-var seasRef=null,seasCol=null,moneyRef=null,betsCol=null,votesCol=null,clubsCol=null,clasRef=null,premRef=null,palmRef=null,postsCol=null,claimsCol=null,squadsCol=null,resCol=null,trCol=null,pubRef=null,mktRef=null,fichRef=null,teamsRef=null;
+var seasRef=null,seasCol=null,moneyRef=null,betsCol=null,votesCol=null,clubsCol=null,clasRef=null,premRef=null,palmRef=null,postsCol=null,claimsCol=null,squadsCol=null,resCol=null,trCol=null,loansCol=null,pubRef=null,mktRef=null,fichRef=null,teamsRef=null;
 var histCol=null,BASE_TITLES={3:3,2:2,1:1,5:1},TITLES=Object.assign({},BASE_TITLES),LAST=5,VUELTAS=1,FOUNDED={2:1911,3:1918,5:1968,8:1911,9:1990},ligaTab="tabla",selRound=0,cmpIds=[];
 var VIEWS={profile:"profileview",feed:"feedview",hist:"historyview",home:"homeview",db:"dbview",sq:"squad",teams:"teamsview",liga:"ligaview"};
 function dtName(u){return u?(names[u]||"Director técnico"):"Sin director técnico"}
@@ -1265,7 +1278,7 @@ function inWin(x){return +x.win===+LG.fich.at}
 function cashOf(tm){
   var c=+LG.fich.base[tm];if(!isFinite(c))c=RULES.budget;
   Object.keys(LG.tr).forEach(function(id){var x=LG.tr[id];if(!x||!inWin(x))return;
-    if(x.kind==="oferta"&&x.status==="aceptada"){if(+x.from===tm)c+=+x.price;if(+x.to===tm)c-=+x.price}
+    if(x.kind==="oferta"&&x.status==="aceptada"&&x.rel!==false){if(+x.from===tm)c+=+x.price;if(+x.to===tm)c-=+x.price}else if(x.kind==="opcion"){if(+x.from===tm)c+=+x.amount;if(+x.to===tm)c-=+x.amount}
     else if(x.kind==="libre"&&+x.team===tm)c+=+x.amount;
     else if(x.kind==="fichaje"&&+x.team===tm)c-=+x.amount});
   return rnd1(c)}
@@ -1296,14 +1309,14 @@ function changed(){clearTimeout(chT);chT=setTimeout(function(){
   recompute();notifyScan();
   var ids=Object.keys(LG.claims).sort().join(",");
   if(ids!==nameKey&&BK){nameKey=ids;BK.profiles(Object.keys(LG.claims)).then(function(ps){Object.keys(ps).forEach(function(id){names[id]=(ps[id]&&ps[id].name)||names[id]||""});renderLeague()}).catch(function(){})}
-  applyIncoming();renderLeague();renderSquad();run()},40)}
-function renderLeague(){updateMbar();renderHome();renderHist();renderFeed();renderProfile();renderTeamBox();renderFichBox();renderTeams();renderLiga();updateAccTeam();renderTray()}
+  applyIncoming();processLoans();renderLeague();renderSquad();run()},40)}
+function renderLeague(){updateMbar();renderHome();renderHist();renderFeed();renderProfile();renderTeamBox();renderFichBox();renderLoanBox();renderTeams();renderLiga();updateAccTeam();renderTray()}
 function updateAccTeam(){var e=$("accteam");if(e)e.textContent=myTeam?"Diriges a "+teamName(myTeam)+".":(ref?"Aún no elegiste equipo.":"")}
 function startLeague(db){
-  claimsCol=db.collection("claims");squadsCol=db.collection("plantillas");resCol=db.collection("resultados");trCol=db.collection("traspasos");
+  claimsCol=db.collection("claims");squadsCol=db.collection("plantillas");resCol=db.collection("resultados");trCol=db.collection("traspasos");loansCol=db.collection("prestamos");
   mktRef=db.doc("liga/mercado");fichRef=db.doc("liga/fichajes");teamsRef=db.doc("liga/equipos");
   var err=function(){},col=function(c,key){c.onSnapshot(function(s){var o={};s.docs.forEach(function(d){o[d.id]=d.data()});LG[key]=o;changed()},err)};
-  col(claimsCol,"claims");col(squadsCol,"squads");col(resCol,"results");col(trCol,"tr");postsCol=db.collection("noticias");col(postsCol,"posts");betsCol=db.collection("apuestas");col(betsCol,"bets");votesCol=db.collection("votos");col(votesCol,"votes");clubsCol=db.collection("clubes");col(clubsCol,"clubs");
+  col(claimsCol,"claims");col(squadsCol,"squads");col(loansCol,"loans");col(resCol,"results");col(trCol,"tr");postsCol=db.collection("noticias");col(postsCol,"posts");betsCol=db.collection("apuestas");col(betsCol,"bets");votesCol=db.collection("votos");col(votesCol,"votes");clubsCol=db.collection("clubes");col(clubsCol,"clubs");
   clasRef=db.doc("liga/clasicos");premRef=db.doc("liga/premios");palmRef=db.doc("liga/palmares");moneyRef=db.doc("liga/dinero");seasRef=db.doc("liga/temporada");seasCol=db.collection("temporadas");col(seasCol,"seasons");
   seasRef.onSnapshot(function(s){var d=s.exists?s.data():null;LG.season={n:d&&+d.n>0?Math.floor(+d.n):8,since:d&&+d.since||0};changed()},err);
   moneyRef.onSnapshot(function(s){var d=s.exists?s.data():null,cl=function(a,n,def){if(!Array.isArray(a)||a.length<n)return def.slice();return a.slice(0,30).map(function(v){v=+v;return isFinite(v)&&v>=0?Math.round(v*10)/10:0})};
@@ -1316,8 +1329,8 @@ function startLeague(db){
   teamsRef.onSnapshot(function(s){var d=s.exists?s.data():null;TLIST=cleanTeams(d);VUELTAS=d&&+d.vueltas===2?2:1;refreshTeams();changed()},err);
 }
 function clearLeague(){
-  LG={hist:{},bets:{},votes:{},clubs:{},clasicos:{list:[]},premios:{closed:false},palm:{extra:{},last:0,seasons:[]},season:{n:8,since:0},seasons:{},money:{league:[24,21.6,19.2,16.8,14.4,12,9.6,7.2,4.8,2.4],po:[16,12.8,9.6,6.4,0]},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{},prizes:{},season:0},market:{closed:false,deadline:null}};
-  seasRef=seasCol=moneyRef=betsCol=votesCol=clubsCol=clasRef=premRef=palmRef=postsCol=histCol=claimsCol=squadsCol=resCol=trCol=mktRef=fichRef=teamsRef=null;recompute();renderLeague();run()}
+  LG={hist:{},bets:{},votes:{},clubs:{},clasicos:{list:[]},premios:{closed:false},palm:{extra:{},last:0,seasons:[]},season:{n:8,since:0},seasons:{},loans:{},money:{league:[24,21.6,19.2,16.8,14.4,12,9.6,7.2,4.8,2.4],po:[16,12.8,9.6,6.4,0]},posts:{},claims:{},squads:{},results:{},tr:{},fich:{open:false,at:0,base:{},prizes:{},season:0},market:{closed:false,deadline:null}};
+  seasRef=seasCol=moneyRef=betsCol=votesCol=clubsCol=clasRef=premRef=palmRef=postsCol=histCol=claimsCol=squadsCol=resCol=trCol=loansCol=mktRef=fichRef=teamsRef=null;recompute();renderLeague();run()}
 function pubBody(){return JSON.parse(JSON.stringify({team:myTeam,form:sq.form,s:sq.s,bench:sq.bench,pos:sq.pos||[],sp:sq.sp||[],ts:sq.ts,status:sq.status,cost:spentNow(),upd:Date.now()}))}
 
 
@@ -1404,6 +1417,7 @@ function setView(v){var prev=curView;curView=v;
 function squadProblems(){
   var sel=squadPlayers(),spent=0,stars=0,banned=0,pr=[];
   sel.forEach(function(p){if(p.k===null)banned++;else spent+=p.k;if(p.o===RULES.star)stars++});
+  if(myTeam)spent+=loanAdj(myTeam);
   if(stars!==1)pr.push("Debes tener exactamente un jugador de "+RULES.star+".");
   if(spent>RULES.budget+1e-9)pr.push("Te pasas del presupuesto por "+fmtM(spent-RULES.budget)+" M.");
   if(banned)pr.push("Hay jugadores por encima de "+RULES.star+".");
@@ -1454,7 +1468,7 @@ function myIn(){return Object.keys(LG.tr).map(function(k){return Object.assign({
 function myOut(){return Object.keys(LG.tr).map(function(k){return Object.assign({id:k},LG.tr[k])}).filter(function(x){return x.kind==="oferta"&&inWin(x)&&+x.to===myTeam})}
 function applyIncoming(){
   if(!myTeam||!fichOpen()||!trCol)return;
-  myOut().filter(function(x){return x.status==="aceptada"&&!x.applied&&!applying[x.id]}).forEach(function(x){
+  myOut().filter(function(x){return x.status==="aceptada"&&x.rel!==false&&!x.applied&&!applying[x.id]}).forEach(function(x){
     var p=byId[x.player];if(!p)return;
     var S=FORM[sq.form],L=lu(),i=-1,k;
     for(k=0;k<S.length;k++)if(!L[k]&&spos(k)===p.p){i=k;break}
@@ -1465,46 +1479,169 @@ function applyIncoming(){
     applying[x.id]=1;sq.ts=sq.ts||{};sq.ts[p.id]=Date.now();sqSave();
     var d=Object.assign({},LG.tr[x.id],{applied:true});LG.tr[x.id]=d;
     trCol.doc(x.id).set(d).catch(function(){});toast(p.n+" llegó a tu plantilla.");renderSquad()})}
+// ---- negociación: compras y préstamos, con contraofertas
+function goalTxt(g){if(!g)return "";return g.k==="goles"?g.n+" goles del jugador":g.k==="top"?"terminar entre los "+g.n+" primeros":"salir campeón"}
+function termsTxt(x){
+  if(x.type!=="prestamo")return fmtM(+x.price)+" M";
+  var t="Préstamo "+(+x.dur===2?"2 temporadas":"1 temporada")+" · "+fmtM(+x.price)+" M";
+  if(x.opt==="vol")t+=" · opción de compra "+fmtM(+x.optPrice)+" M";
+  if(x.opt==="obl")t+=" · compra obligatoria por "+fmtM(+x.optPrice)+" M si logra "+goalTxt(x.goal);
+  return t}
+function turnOf(x){return +x.turn||+x.from}
+function offerState(x,id){var d=Object.assign({},LG.tr[id],x,{upd:Date.now()});LG.tr[id]=d;if(trCol)trCol.doc(id).set(d).catch(function(){toast("No se pudo actualizar la oferta.")});renderLeague()}
 function openOffer(p){
   if(!myTeam){toast("Elige tu equipo para hacer ofertas.");return}
   var tb=takenBy(p);if(!tb){toast(p.n+" no tiene equipo: lo puedes fichar directo.");return}
   if(!fichOpen()){toast("Los fichajes todavía no están abiertos.");return}
-  var cash=cashOf(myTeam);
-  $("drawer").innerHTML='<div class="dhead"><div><h2 id="dname">Oferta por '+esc(p.n)+'</h2><p class="dmeta">Pertenece a '+tnh(tb.t)+'</p></div><button class="close" type="button" id="dclose">Cerrar</button></div>'+
-    '<div class="facts" style="margin-top:16px"><div class="fact"><span>Media</span><b>'+p.o+'</b></div><div class="fact"><span>Valor</span><b>'+(p.k===null?"–":fmtM(p.k)+" M")+'</b></div><div class="fact"><span>Tu saldo</span><b>'+fmtM(cash)+' M</b></div></div>'+
-    '<div class="field" style="margin-top:16px"><label for="oprice">Tu oferta (millones)</label><input id="oprice" type="number" min="0" step="0.1" value="'+(p.k||0)+'"></div>'+
-    '<p class="note" style="margin:10px 0 0">Si '+esc(dtName(tb.u))+' acepta, pagas esa cifra y '+esc(p.n)+' pasa a tu plantilla. Necesitas tener un lugar libre.</p>'+
-    '<div class="actions" style="margin-top:16px"><button class="btn primary" type="button" id="osend">Enviar oferta</button></div>';
+  var ln=loanFor(p.id);if(ln){toast(p.n+" está a préstamo en "+teamName(+ln.borrower)+".");return}
+  offerForm({p:p,from:tb.t,to:myTeam,ex:null,u:tb.u})}
+function offerForm(o){
+  var p=o.p,ex=o.ex,from=+o.from,to=+o.to,buyerMe=myTeam===to,oth=buyerMe?from:to,cash=cashOf(to);
+  var t=ex?{type:ex.type==="prestamo"?"prestamo":"compra",price:+ex.price,dur:+ex.dur===2?2:1,opt:ex.opt||"none",optPrice:+ex.optPrice||0,goal:ex.goal||{k:"goles",n:5}}:{type:"compra",price:p.k||0,dur:1,opt:"none",optPrice:p.k||0,goal:{k:"goles",n:5}};
+  var sel=function(id,opts,v){return '<select id="'+id+'">'+opts.map(function(a){return '<option value="'+a[0]+'"'+(String(a[0])===String(v)?" selected":"")+'>'+a[1]+'</option>'}).join("")+'</select>'};
+  var last=ex&&ex.hist&&ex.hist.length?ex.hist[ex.hist.length-1]:null;
+  $("drawer").innerHTML='<div class="dhead"><div><h2 id="dname">'+(ex?"Contraoferta por ":"Oferta por ")+esc(p.n)+'</h2><p class="dmeta">'+(ex?"Negocias con ":"Pertenece a ")+tnh(oth)+'</p></div><button class="close" type="button" id="dclose">Cerrar</button></div>'+
+    '<div class="facts" style="margin-top:16px"><div class="fact"><span>Media</span><b>'+p.o+'</b></div><div class="fact"><span>Valor</span><b>'+(p.k===null?"–":fmtM(p.k)+" M")+'</b></div><div class="fact"><span>Saldo del comprador</span><b>'+fmtM(cash)+' M</b></div></div>'+
+    (last?'<p class="note" style="margin:12px 0 0">Última propuesta de '+esc(teamName(+last.t))+': '+esc(last.x||"")+(last.m?' — “'+esc(last.m)+'”':'')+'</p>':'')+
+    '<div class="field" style="margin-top:16px"><label for="otype">Tipo de operación</label>'+sel("otype",[["compra","Compra"],["prestamo","Préstamo"]],t.type)+'</div>'+
+    '<div id="oloan"><div class="field" style="margin-top:12px"><label for="odur">Duración</label>'+sel("odur",[[1,"1 temporada"],[2,"2 temporadas"]],t.dur)+'</div>'+
+    '<div class="field" style="margin-top:12px"><label for="oopt">Opción de compra</label>'+sel("oopt",[["none","Sin opción de compra"],["vol","Con opción (el prestatario decide al final)"],["obl","Obligatoria si se cumple un objetivo"]],t.opt)+'</div>'+
+    '<div id="ooptp" class="field" style="margin-top:12px"><label for="optp">Precio de compra (millones)</label><input id="optp" type="number" min="0" step="0.1" value="'+t.optPrice+'"></div>'+
+    '<div id="ogoal" class="field" style="margin-top:12px"><label for="ogk">Objetivo para que la compra sea obligatoria</label>'+sel("ogk",[["goles","El jugador marca N goles"],["top","El equipo termina entre los N primeros"],["campeon","El equipo sale campeón"]],t.goal.k)+'<input id="ogn" type="number" min="1" max="99" step="1" value="'+(+t.goal.n||5)+'" aria-label="Valor del objetivo" style="margin-top:8px"></div></div>'+
+    '<div class="field" style="margin-top:16px"><label for="oprice" id="oplab">Oferta (millones)</label><input id="oprice" type="number" min="0" step="0.1" value="'+t.price+'"></div>'+
+    '<div class="field" style="margin-top:12px"><label for="omsg">Mensaje (opcional)</label><input id="omsg" type="text" maxlength="140" placeholder="Ej: lo necesito para los playoffs" autocomplete="off"></div>'+
+    '<p class="note" id="onote" style="margin:10px 0 0"></p>'+
+    '<div class="actions" style="margin-top:16px"><button class="btn primary" type="button" id="osend">'+(ex?"Enviar contraoferta":"Enviar oferta")+'</button></div>';
   lastFocus=document.activeElement;$("overlay").hidden=false;$("oprice").focus();$("dclose").onclick=close;
-  $("osend").onclick=function(){var pr=rnd1(+$("oprice").value);if(!(pr>=0)){toast("Escribe un monto válido.");return}
-    if(pr>cashOf(myTeam)+1e-9){toast("No te alcanza: tu saldo es "+fmtM(cashOf(myTeam))+" M.");return}
-    var dup=myOut().some(function(x){return x.status==="pendiente"&&x.player===p.id});if(dup){toast("Ya hiciste una oferta pendiente por este jugador.");return}
-    trSet({kind:"oferta",player:p.id,from:tb.t,to:myTeam,price:pr,status:"pendiente",by:uid});renderLeague();close();toast("Oferta enviada a "+teamName(tb.t)+".")}}
-function offerState(x,id){var d=Object.assign({},LG.tr[id],x,{upd:Date.now()});LG.tr[id]=d;if(trCol)trCol.doc(id).set(d).catch(function(){toast("No se pudo actualizar la oferta.")});renderLeague()}
+  var upd=function(){var loan=$("otype").value==="prestamo",opt=$("oopt").value;
+    $("oloan").hidden=!loan;$("ooptp").hidden=!(loan&&opt!=="none");$("ogoal").hidden=!(loan&&opt==="obl");
+    $("ogn").hidden=$("ogk").value==="campeon";
+    $("oplab").textContent=loan?"Costo del préstamo (millones)":(ex?"Contraoferta (millones)":"Tu oferta (millones)");
+    $("onote").textContent=loan?"El costo del préstamo lo paga "+teamName(to)+" a "+teamName(from)+" al cerrar el trato. El jugador vuelve a su club al terminar, salvo que se compre."+(opt==="obl"?" Si se cumple el objetivo, la compra se ejecuta sola al final.":opt==="vol"?" Al final, el prestatario elige comprar o devolver.":""):"Si se acepta, el comprador paga esa cifra y "+p.n+" pasa a su plantilla. Necesita un lugar libre."};
+  var touched=!!ex;$("oprice").addEventListener("input",function(){touched=true});
+  $("otype").addEventListener("change",function(){if(!touched)$("oprice").value=$("otype").value==="prestamo"?rnd1((p.k||0)*0.2):(p.k||0)});
+  ["otype","oopt","ogk"].forEach(function(id){$(id).addEventListener("change",upd)});upd();
+  $("osend").onclick=function(){
+    var ty=$("otype").value,pr=rnd1(+$("oprice").value);
+    if(!(pr>=0)){toast("Escribe un monto válido.");return}
+    var nt={type:ty,price:pr,dur:null,opt:"none",optPrice:0,goal:null};
+    if(ty==="prestamo"){nt.dur=+$("odur").value===2?2:1;nt.opt=$("oopt").value;
+      if(nt.opt!=="none"){var op=rnd1(+$("optp").value);if(!(op>=0)){toast("Escribe el precio de compra.");return}nt.optPrice=op}
+      if(nt.opt==="obl"){var gk=$("ogk").value,gn=Math.round(+$("ogn").value);if(gk!=="campeon"&&!(gn>=1)){toast("Escribe el objetivo.");return}nt.goal=gk==="campeon"?{k:"campeon",n:1}:{k:gk,n:gn}}}
+    if(pr>cashOf(to)+1e-9){toast(buyerMe?"No te alcanza: tu saldo es "+fmtM(cashOf(to))+" M.":teamName(to)+" no tiene saldo para eso ("+fmtM(cashOf(to))+" M).");return}
+    var msg=$("omsg").value.trim().slice(0,140),h=((ex&&ex.hist)||[]).concat([{t:myTeam,ts:Date.now(),x:termsTxt(nt),m:msg}]).slice(-8);
+    if(!ex){
+      var dup=myOut().some(function(x){return x.status==="pendiente"&&x.player===p.id});if(dup){toast("Ya hiciste una oferta pendiente por este jugador.");return}
+      trSet(Object.assign({kind:"oferta",player:p.id,from:from,to:to,status:"pendiente",by:uid,turn:from,hist:h},nt));renderLeague();close();toast("Oferta enviada a "+teamName(from)+".");return}
+    var cur=LG.tr[ex.id];if(!cur||cur.status!=="pendiente"||turnOf(cur)!==myTeam){toast("Esta oferta ya cambió.");close();return}
+    offerState(Object.assign({},nt,{status:"pendiente",by:uid,turn:oth,hist:h}),ex.id);close();toast("Contraoferta enviada a "+teamName(oth)+".")}}
 function renderFichBox(){
   var b=$("fichbox");if(!b)return;
   if(!fichOpen()||!myTeam){b.hidden=true;b.innerHTML="";return}
   b.hidden=false;
-  var cash=cashOf(myTeam),inn=myIn(),out=myOut();
-  var ln=function(x,mine){var p=byId[x.player];return '<div class="ofrow"><span><b>'+esc(p?p.n:"Jugador")+'</b><small>'+(mine?"De "+tnh(+x.to):"Para "+tnh(+x.from))+' · '+fmtM(+x.price)+' M</small></span><span class="oact">'+
-    (mine&&x.status==="pendiente"?'<button class="btn primary" type="button" data-oacc="'+x.id+'">Aceptar</button><button class="btn" type="button" data-orej="'+x.id+'">Rechazar</button>':(!mine&&x.status==="pendiente"?'<button class="btn" type="button" data-ocan="'+x.id+'">Cancelar</button>':'<span class="pill '+(x.status==="aceptada"?"ok":"soft")+'">'+esc(x.status)+'</span>'))+'</span></div>'};
-  var pend=inn.filter(function(x){return x.status==="pendiente"}),mine=out.filter(function(x){return x.status==="pendiente"||x.status==="aceptada"||x.status==="rechazada"}).sort(function(a,c){return c.ts-a.ts}).slice(0,6);
+  var cash=cashOf(myTeam),all=myIn().concat(myOut());
+  var ofCard=function(x,mode){var p=byId[x.player],own=+x.from===myTeam,oth=own?+x.to:+x.from,acts="";
+    if(mode==="act")acts='<button class="btn primary" type="button" data-oacc="'+x.id+'">Aceptar</button><button class="btn" type="button" data-ocnt="'+x.id+'">Contraofertar</button><button class="btn" type="button" data-orej="'+x.id+'">Rechazar</button>';
+    else if(mode==="wait")acts='<span class="note">Esperando a '+esc(teamName(turnOf(x)))+'</span><button class="btn" type="button" data-ocan="'+x.id+'">Cancelar</button>';
+    else acts='<span class="pill '+(x.status==="aceptada"?"ok":"soft")+'">'+(x.status==="aceptada"&&x.rel===false?"aceptada · falta liberar":esc(x.status))+'</span>';
+    var hs=(x.hist||[]).slice(-4),hl=hs.length&&(hs.length>1||hs[0].m)?'<ul class="ofhist">'+hs.map(function(h){return '<li><b>'+esc(teamName(+h.t))+':</b> '+esc(h.x||"")+(h.m?' — <q>“'+esc(h.m)+'”</q>':'')+'</li>'}).join("")+'</ul>':"";
+    return '<div class="ofcard"><div class="ofrow"><span><b>'+esc(p?p.n:"Jugador")+'</b><small>'+(own?"Oferta de ":"Tu oferta a ")+tnh(oth)+' · '+esc(termsTxt(x))+'</small></span><span class="oact">'+acts+'</span></div>'+hl+'</div>'};
+  var act=all.filter(function(x){return x.status==="pendiente"&&turnOf(x)===myTeam}),wait=all.filter(function(x){return x.status==="pendiente"&&turnOf(x)!==myTeam}),
+    done=all.filter(function(x){return x.status==="aceptada"||x.status==="rechazada"}).sort(function(a,c){return (c.upd||c.ts||0)-(a.upd||a.ts||0)}).slice(0,5);
   b.innerHTML='<div class="rhead"><b>Fichajes</b><span class="pill ok">Abiertos</span></div><p class="clock"><span class="note">Tu saldo</span><b>'+fmtM(cash)+' M</b></p>'+
-    '<p class="note" style="margin:0 0 8px">Toca un jugador de tu plantilla para venderlo al club: recibes su valor menos un 20 %. También puedes ofertar por jugadores de otros equipos desde la base de jugadores.</p>'+
-    '<h3 class="sec" style="margin:12px 0 6px">Ofertas recibidas</h3>'+(pend.length?pend.map(function(x){return ln(x,true)}).join(""):'<p class="note">No tienes ofertas pendientes.</p>')+
-    '<h3 class="sec" style="margin:12px 0 6px">Tus ofertas</h3>'+(mine.length?mine.map(function(x){return ln(x,false)}).join(""):'<p class="note">Todavía no hiciste ofertas.</p>')}
+    '<p class="note" style="margin:0 0 8px">Toca un jugador de tu plantilla para venderlo al club: recibes su valor menos un 20 %. También puedes ofertar —compra o préstamo— por jugadores de otros equipos desde la base de jugadores, y negociar con contraofertas.</p>'+
+    '<h3 class="sec" style="margin:12px 0 6px">Te toca responder</h3>'+(act.length?act.map(function(x){return ofCard(x,"act")}).join(""):'<p class="note">No tienes ofertas para responder.</p>')+
+    '<h3 class="sec" style="margin:12px 0 6px">Esperando respuesta</h3>'+(wait.length?wait.map(function(x){return ofCard(x,"wait")}).join(""):'<p class="note">Nada en espera.</p>')+
+    (done.length?'<h3 class="sec" style="margin:12px 0 6px">Cerradas</h3>'+done.map(function(x){return ofCard(x,"done")}).join(""):"")}
 $("fichbox").addEventListener("click",function(e){
-  var a=e.target.closest("[data-oacc]"),r=e.target.closest("[data-orej]"),c=e.target.closest("[data-ocan]");
-  if(a){var id=a.dataset.oacc,x=LG.tr[id];if(!x||x.status!=="pendiente")return;var p=byId[x.player];
+  var g=function(a){var el=e.target.closest("["+a+"]");return el&&el.getAttribute(a)};
+  var a=g("data-oacc"),r=g("data-orej"),c=g("data-ocan"),k=g("data-ocnt"),id=a||r||c||k;if(!id)return;
+  var x=LG.tr[id];if(!x)return;var p=byId[x.player];
+  if(c){if(x.status==="pendiente"){offerState({status:"cancelada",rby:uid},id);toast("Oferta cancelada.")}return}
+  if(x.status!=="pendiente"||turnOf(x)!==myTeam){toast("Esta oferta ya cambió.");renderLeague();return}
+  if(r){offerState({status:"rechazada",rby:uid},id);toast("Oferta rechazada.");return}
+  if(k){offerForm({p:p,from:+x.from,to:+x.to,ex:Object.assign({id:id},x)});return}
+  if(+x.price>cashOf(+x.to)+1e-9){toast(+x.to===myTeam?"No te alcanza el saldo para esta oferta.":"El comprador ya no tiene saldo para esta oferta.");return}
+  if(+x.to===myTeam){offerState({status:"aceptada",rel:false,rby:uid},id);toast("Aceptaste. Falta que "+teamName(+x.from)+" libere a "+(p?p.n:"el jugador")+".");return}
+  var has=sq.s.indexOf(x.player)>-1||sq.bench.indexOf(x.player)>-1;
+  if(!has){offerState({status:"cancelada",rby:uid},id);toast("Ese jugador ya no está en tu plantilla.");return}
+  if(loanFor(x.player)){offerState({status:"cancelada",rby:uid},id);toast("Ese jugador está a préstamo y no se puede vender.");return}
+  dropFromSq(x.player);sqSave();renderSquad();
+  offerState({status:"aceptada",rel:true,rby:uid},id);
+  if(x.type==="prestamo")mkLoan(LG.tr[id],id);
+  toast((x.type==="prestamo"?"Prestaste a ":"Vendiste a ")+(p?p.n:"el jugador")+" por "+fmtM(+x.price)+" M.")});
+
+// ---- préstamos en curso
+var releasing={},loanBusy={};
+function mkLoan(x,id){
+  var s0=curSeason(),d={player:x.player,owner:+x.from,borrower:+x.to,dur:+x.dur===2?2:1,s0:s0,until:s0+(+x.dur===2?2:1),opt:x.opt||"none",optPrice:+x.optPrice||0,goal:x.goal||null,fee:+x.price||0,status:"activo",ts:Date.now()};
+  LG.loans[id]=d;if(loansCol)loansCol.doc(id).set(d).catch(function(){toast("No se pudo registrar el préstamo. Revisa que las reglas de Firebase incluyan «prestamos».")});renderLeague()}
+function loanSet(id,patch){var d=Object.assign({},LG.loans[id],patch);LG.loans[id]=d;if(loansCol)loansCol.doc(id).set(d).catch(function(){toast("No se pudo actualizar el préstamo.")});renderLeague()}
+function loanGoals(l){
+  var p=byId[l.player],nm=p?p.n.toLowerCase():"",c=0,cnt=function(a){(a||[]).forEach(function(z){if(+z.t===+l.borrower&&String(z.n).toLowerCase()===nm)c+=+z.c||0})};
+  for(var n=l.s0;n<l.until;n++){var a=LG.seasons["t"+n];if(a)cnt(Array.isArray(a.allsc)?a.allsc:a.scorers)}
+  if(curSeason()>=l.s0&&curSeason()<l.until)cnt(scorers());
+  return c}
+function goalMet(l){
+  var g=l.goal;if(!g)return false;
+  var last=LG.seasons["t"+(l.until-1)];if(!last)return null;
+  if(g.k==="goles")return loanGoals(l)>=g.n;
+  if(g.k==="top"){var pos=-1;(last.table||[]).forEach(function(r,i){if(+r.t===+l.borrower)pos=i+1});return pos>0&&pos<=g.n}
+  if(g.k==="campeon")return +last.champ===+l.borrower;
+  return false}
+function loanDue(l){return curSeason()>=l.until}
+function loanBuy(l){
+  if(loanBusy[l.id])return;loanBusy[l.id]=1;var p=byId[l.player];
+  trSet({kind:"opcion",from:+l.owner,to:+l.borrower,player:l.player,amount:+l.optPrice||0,loan:l.id});
+  loanSet(l.id,{status:"comprado",res:"compra",at:Date.now()});
+  toast((p?p.n:"El jugador")+" quedó en tu plantilla por "+fmtM(+l.optPrice||0)+" M.")}
+function loanReturn(l){
+  if(loanBusy[l.id])return;loanBusy[l.id]=1;var p=byId[l.player];
+  dropFromSq(l.player);sqSave();renderSquad();
+  loanSet(l.id,{status:"devolviendo",at:Date.now()});
+  toast((p?p.n:"El jugador")+" volvió a "+teamName(+l.owner)+".")}
+function processLoans(){
+  if(!myTeam||!trCol||!loansCol)return;
+  // el dueño libera al jugador cuando el comprador aceptó su contraoferta
+  Object.keys(LG.tr).forEach(function(id){var x=LG.tr[id];
+    if(!x||x.kind!=="oferta"||x.status!=="aceptada"||x.rel!==false||+x.from!==myTeam||!inWin(x)||releasing[id])return;
+    releasing[id]=1;var p=byId[x.player];
     var has=sq.s.indexOf(x.player)>-1||sq.bench.indexOf(x.player)>-1;
-    if(!has){offerState({status:"cancelada"},id);toast("Ese jugador ya no está en tu plantilla.");return}
-    if(+x.price>cashOf(+x.to)+1e-9){toast("El comprador ya no tiene saldo para esta oferta.");return}
-    for(var i=0;i<sq.s.length;i++)if(sq.s[i]===x.player)sq.s[i]=null;
-    for(var j=0;j<sq.bench.length;j++)if(sq.bench[j]===x.player)sq.bench[j]=null;
-    if(sq.ts)delete sq.ts[x.player];sqSave();renderSquad();
-    offerState({status:"aceptada"},id);toast("Vendiste a "+(p?p.n:"el jugador")+" por "+fmtM(+x.price)+" M.");return}
-  if(r){offerState({status:"rechazada"},r.dataset.orej);toast("Oferta rechazada.");return}
-  if(c){offerState({status:"cancelada"},c.dataset.ocan);toast("Oferta cancelada.")}});
+    if(!has||loanFor(x.player)){offerState({status:"cancelada",rby:uid},id);toast("No se pudo liberar a "+(p?p.n:"el jugador")+": ya no está disponible.");return}
+    dropFromSq(x.player);sqSave();renderSquad();
+    offerState({rel:true},id);if(x.type==="prestamo")mkLoan(LG.tr[id],id);
+    toast((x.type==="prestamo"?"Prestaste a ":"Vendiste a ")+(p?p.n:"el jugador")+" por "+fmtM(+x.price)+" M.")});
+  loanList().forEach(function(l){
+    var p=byId[l.player];
+    // el prestatario resuelve al terminar el préstamo
+    if(+l.borrower===myTeam&&l.status==="activo"&&loanDue(l)&&!loanBusy[l.id]){
+      if(l.opt==="obl"){var m=goalMet(l);if(m===null)return;if(m)loanBuy(l);else loanReturn(l)}
+      else if(l.opt!=="vol")loanReturn(l)}
+    // el dueño recupera al jugador devuelto
+    if(+l.owner===myTeam&&l.status==="devolviendo"&&!releasing["r"+l.id]){
+      if(!p){loanSet(l.id,{status:"devuelto"});return}
+      if(putInSq(p)){releasing["r"+l.id]=1;sqSave();renderSquad();loanSet(l.id,{status:"devuelto"});toast(p.n+" volvió a tu plantilla.")}
+      else if(!warned["r"+l.id]){warned["r"+l.id]=1;toast(p.n+" vuelve de su préstamo: libera un lugar en tu plantilla.")}}})}
+function renderLoanBox(){
+  var b=$("loanbox");if(!b)return;
+  var ls=myTeam?loanList().filter(function(l){return (+l.owner===myTeam||+l.borrower===myTeam)&&loanActive(l)}):[];
+  if(!ls.length){b.hidden=true;b.innerHTML="";return}
+  b.hidden=false;
+  b.innerHTML='<div class="rhead"><b>Préstamos</b><span class="pill soft">'+ls.length+'</span></div>'+ls.map(function(l){
+    var p=byId[l.player],bor=+l.borrower===myTeam,due=loanDue(l),ex="";
+    var info=(bor?"Prestado por ":"Cedido a ")+tnh(bor?+l.owner:+l.borrower)+' · hasta fin de la temporada '+(l.until-1)+' · costó '+fmtM(+l.fee)+' M';
+    var opt=l.opt==="vol"?"Opción de compra: "+fmtM(+l.optPrice)+" M":l.opt==="obl"?"Compra obligatoria por "+fmtM(+l.optPrice)+" M si logra "+goalTxt(l.goal)+(l.goal&&l.goal.k==="goles"?" ("+loanGoals(l)+"/"+l.goal.n+")":""):"Sin opción de compra";
+    if(l.status==="devolviendo")ex='<span class="note">Volviendo a su club</span>';
+    else if(bor&&due&&l.opt==="vol")ex='<button class="btn primary" type="button" data-lbuy="'+l.id+'">Comprar por '+fmtM(+l.optPrice)+' M</button><button class="btn" type="button" data-lret="'+l.id+'">Devolver</button>';
+    else if(due)ex='<span class="note">Se resuelve al terminar la temporada</span>';
+    return '<div class="ofcard loanrow"><div class="ofrow"><span><b>'+esc(p?p.n:"Jugador")+'</b><small>'+info+'</small><small>'+esc(opt)+'</small></span><span class="oact">'+ex+'</span></div></div>'}).join("")}
+$("loanbox").addEventListener("click",function(e){
+  var bb=e.target.closest("[data-lbuy]"),rr=e.target.closest("[data-lret]"),id=bb?bb.getAttribute("data-lbuy"):rr?rr.getAttribute("data-lret"):null;if(!id)return;
+  var l=LG.loans[id];if(!l||l.status!=="activo"||+l.borrower!==myTeam)return;l=Object.assign({id:id},l);
+  if(rr){loanReturn(l);return}
+  if(fichOpen()&&+l.optPrice>cashOf(myTeam)+1e-9){toast("No te alcanza el saldo para la opción: vende a alguien o devuelve al jugador.");return}
+  loanBuy(l)});
+
 
 // ---- plantillas de todos
 function teamSummary(t){
@@ -1513,7 +1650,7 @@ function teamSummary(t){
   var ids=d?(d.s||[]).concat(d.bench||[]).filter(function(id){return id&&byId[id]}):[];
   var ps=ids.map(function(id){return byId[id]}),cost=0,so=0,sa=0,star=null;
   ps.forEach(function(p){cost+=p.k||0;so+=p.o;sa+=p.a;if(p.o===RULES.star)star=p});
-  return{t:t,u:u,d:d,ps:ps,n:ps.length,cost:cost,ovr:ps.length?so/ps.length:0,age:ps.length?sa/ps.length:0,star:star,status:d&&d.status==="entregada"?"entregada":d?"borrador":"nada"}}
+  return{t:t,u:u,d:d,ps:ps,n:ps.length,cost:cost+loanAdj(t),ovr:ps.length?so/ps.length:0,age:ps.length?sa/ps.length:0,star:star,status:d&&d.status==="entregada"?"entregada":d?"borrador":"nada"}}
 function stPill(s){return s.status==="entregada"?'<span class="pill ok">Entregada</span>':s.status==="borrador"?'<span class="pill warn">Borrador</span>':'<span class="pill soft">'+(s.u?"Sin plantilla":"Sin director técnico")+'</span>'}
 function renderTeams(){
   var box=$("teamsbody");if(!box||$("teamsview").hidden&&box.dataset.ok==="1")return;
@@ -1659,7 +1796,7 @@ function addTeam(){
   rd.readAsDataURL(f)}
 function squadBase(){var base={};
   ACT.forEach(function(tm){var u=teamOwner[tm],d=u&&u===uid?{s:sq.s,bench:sq.bench}:(u?LG.squads[u]:null),c=0;
-    if(d)(d.s||[]).concat(d.bench||[]).forEach(function(id){if(id&&byId[id])c+=byId[id].k||0});base[tm]=rnd1(RULES.budget-c)});return base}
+    if(d)(d.s||[]).concat(d.bench||[]).forEach(function(id){if(id&&byId[id])c+=byId[id].k||0});base[tm]=rnd1(RULES.budget-c-loanAdj(tm))});return base}
 function toggleFich(){
   if(!fichRef){toast("Inicia sesión como organizador.");return}
   if(fichOpen()){fichRef.set({open:false,at:LG.fich.at,base:LG.fich.base,prizes:LG.fich.prizes||{},season:LG.fich.season||0}).then(function(){LG.fich.open=false;renderLeague();toast("Fichajes cerrados.")},function(){toast("No se pudo cerrar.")});return}
@@ -1815,8 +1952,9 @@ function ntfEvents(){
   var ev=[];if(!uid)return ev;
   Object.keys(LG.tr).forEach(function(id){var x=LG.tr[id];if(!x||x.kind!=="oferta"||!x.win&&x.win!==0)return;if(+x.win!==+LG.fich.at)return;
     var p=byId[x.player],n=p?p.n:"un jugador";
-    if(myTeam&&+x.from===myTeam&&x.status==="pendiente"&&x.by!==uid)ev.push({k:"of"+id+"p",ts:x.ts||0,t:"Oferta por "+n,b:teamName(+x.to)+" ofrece "+fmtM(+x.price)+" M."});
-    if(myTeam&&+x.to===myTeam&&(x.status==="aceptada"||x.status==="rechazada")&&x.upd)ev.push({k:"of"+id+x.status,ts:x.upd,t:x.status==="aceptada"?"Oferta aceptada":"Oferta rechazada",b:teamName(+x.from)+" "+(x.status==="aceptada"?"aceptó":"rechazó")+" tu oferta por "+n+"."})});
+    if(myTeam&&(+x.from===myTeam||+x.to===myTeam)){var oth=+x.from===myTeam?+x.to:+x.from;
+      if(x.status==="pendiente"&&turnOf(x)===myTeam&&x.by!==uid)ev.push({k:"of"+id+"p"+(x.upd||x.ts||0),ts:x.upd||x.ts||0,t:((x.hist&&x.hist.length>1)?"Contraoferta":"Oferta")+" por "+n,b:teamName(oth)+" propone: "+termsTxt(x)+"."});
+      if((x.status==="aceptada"||x.status==="rechazada")&&x.upd&&(x.rby?x.rby!==uid:+x.to===myTeam))ev.push({k:"of"+id+x.status,ts:x.upd,t:x.status==="aceptada"?"Oferta aceptada":"Oferta rechazada",b:teamName(oth)+" "+(x.status==="aceptada"?"aceptó":"rechazó")+" la oferta por "+n+"."})}});
   Object.keys(LG.posts).forEach(function(id){var p=LG.posts[id];if(!p||!p.text||p.uid===uid||!isActive(+p.team))return;
     ev.push({k:"po"+id,ts:p.ts||0,t:teamName(+p.team)+" · "+(FTYPES[p.type]||"Red"),b:String(p.text).slice(0,110)})});
   Object.keys(LG.results).forEach(function(k){var r=LG.results[k];if(!r||r.by===uid||!r.upd)return;var m=/^r(\d+)-(\d+)-(\d+)$/.exec(k);if(!m)return;var h=+m[2],a=+m[3];
@@ -1907,7 +2045,7 @@ function buildArchive(){
   var rk=Object.keys(us).map(function(u){return{n:us[u]||dtName(u),p:wallet(u).pts}}).sort(function(a,b){return b.p-a.p})[0]||null;
   var table=st.map(function(s){return{t:s.t,pj:s.pj,g:s.g,e:s.e,p:s.p,gf:s.gf,gc:s.gc,pts:s.pts}});
   var doc={n:n,closedAt:Date.now(),champ:R.order[0]||0,finalist:R.order[1]||0,how:R.how,order:R.order,names:names,table:table,po:po,results:res,prizes:pm,
-    scorers:sc.slice(0,5).map(function(x){return{n:x.n,t:x.t,c:x.c}}),votes:votesWinners(),by:uid};
+    scorers:sc.slice(0,5).map(function(x){return{n:x.n,t:x.t,c:x.c}}),allsc:sc.slice(0,300).map(function(x){return{n:x.n,t:x.t,c:x.c}}),votes:votesWinners(),by:uid};
   if(rk)doc.bettor=rk;if(B.relegated)doc.relegated=B.relegated;return doc}
 function seasonOrgHTML(){
   var n=curSeason(),done=leagueDone();

@@ -45,6 +45,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if signed();
     }
+    // Préstamos entre equipos: duran una o dos temporadas
+    match /prestamos/{doc} {
+      allow read: if true;
+      allow write: if signed();
+    }
 
     // Red NG: cada director técnico publica solo en nombre de su equipo
     match /noticias/{id} {
