@@ -958,12 +958,13 @@ function clean(d){
   for(var i=0;i<NS;i++)o.s.push(ok(src[i])?src[i]:null);
   for(var b=0;b<NB;b++){var id=d&&Array.isArray(d.bench)?d.bench[b]:null;o.bench.push(ok(id)?id:null)}
   o.pos=[];for(var q=0;q<NS;q++){var pp=d&&d.form===f&&Array.isArray(d.pos)?d.pos[q]:null;o.pos.push(Array.isArray(pp)&&isFinite(pp[0])&&isFinite(pp[1])?[Math.max(5,Math.min(95,+pp[0])),Math.max(4,Math.min(96,+pp[1]))]:null)}
-  o.status=d&&d.status==="entregada"?"entregada":"borrador";o.ts={};
+  o.status=d&&d.status==="entregada"?"entregada":"borrador";o.ts={};o.upd=d&&+d.upd>0?+d.upd:0;
   if(d&&d.ts&&typeof d.ts==="object")o.s.concat(o.bench).forEach(function(id){if(id&&+d.ts[id]>0)o.ts[id]=+d.ts[id]});
   return o}
 var sq=clean(null);
 try{sq=clean(JSON.parse(localStorage.getItem("plantilla-v1")||"null"))}catch(e){}
-function localSave(){try{localStorage.setItem("plantilla-v1",JSON.stringify(sq))}catch(e){}}
+var sqOwner="";try{sqOwner=localStorage.getItem("plantilla-owner")||""}catch(e){}
+function localSave(){try{localStorage.setItem("plantilla-v1",JSON.stringify(sq));localStorage.setItem("plantilla-owner",sqOwner)}catch(e){}}
 function hasContent(s){return s.s.some(Boolean)||s.bench.some(Boolean)}
 function lu(){return sq.s}
 function usedIds(){var u={};lu().concat(sq.bench).forEach(function(id){if(id)u[id]=1});return u}
@@ -1119,7 +1120,7 @@ var acc={st:"out",name:"",avatar:""},sync="local",ref=null,uid=null,dirty=false,
 var SYNCTXT={local:"Solo en este navegador. Inicia sesión para guardar en tu cuenta.",saving:"Guardando…",saved:"Guardado en tu cuenta",error:"No se pudo guardar. Se reintentará con tu próximo cambio.",denied:"Tu nivel de acceso a esta página no permite guardar."};
 function setSync(s){sync=s;var t=SYNCTXT[s];$("sqsync").textContent=t;var c=s==="saved"?"saved":s==="saving"?"saving":(s==="error"||s==="denied")?"error":"";
   $("sqdot").className="dot "+c;$("accdot").className="dot "+c;var pf=$("pfsync");if(pf)pf.textContent=t;var pd=$("pfdot");if(pd)pd.className="dot "+c;var a=$("accsync");if(a)a.textContent=t;var d=$("accd");if(d)d.className="dot "+c}
-function sqSave(){localSave();if(ref)queueSave()}
+function sqSave(){sq.upd=Date.now();sqOwner=uid||"";localSave();if(ref)queueSave()}
 function queueSave(){dirty=true;clearTimeout(saveT);setSync("saving");saveT=setTimeout(flush,700)}
 function flush(){
   if(!ref||writing||!dirty)return;
@@ -1156,10 +1157,13 @@ function closeAcc(){$("accpanel").hidden=true;$("accbtn").setAttribute("aria-exp
 $("accbtn").onclick=function(){setView("profile")};
 
 
+function sameSq(a,b){var x=clean(a),y=clean(b);x.upd=y.upd=0;return JSON.stringify(x)===JSON.stringify(y)}
 function applyRemote(d){
   var inc=clean(d);
-  if(JSON.stringify(inc)===JSON.stringify(clean(sq)))return;
-  sq=inc;localSave();renderSquad();toast("Se cargó tu plantilla guardada.");
+  if(sameSq(inc,sq)){if(+inc.upd>+sq.upd){sq.upd=inc.upd;localSave()}return false}
+  // si este dispositivo tiene cambios más nuevos que la nube (p. ej. un fichaje que no llegó a subirse), se suben en vez de descartarlos
+  if(uid&&sqOwner===uid&&+sq.upd>+inc.upd&&hasContent(sq)){dirty=true;flush();return true}
+  sq=inc;sqOwner=uid||"";localSave();renderSquad();toast("Se cargó tu plantilla guardada.");return false
 }
 // ===== acceso y datos (Firebase) =====
 var FB_CONFIG={apiKey:"AIzaSyA445xTN-z6Vy-RZ7kV9RLsPiVTletYKC4",authDomain:"ng-league.firebaseapp.com",projectId:"ng-league",storageBucket:"ng-league.firebasestorage.app",messagingSenderId:"1027059070582",appId:"1:1027059070582:web:7b840122f0a813cd549157"};
@@ -1198,7 +1202,7 @@ function onUser(u){
     if(!snap.exists){if(firstSnap){firstSnap=false;if(hasContent(sq)){dirty=true;flush()}else setSync("saved")}return}
     firstSnap=false;
     if(snap.metadata&&snap.metadata.hasPendingWrites||dirty||writing)return;
-    applyRemote(snap.data());setSync("saved")},function(){setSync("error")});
+    if(!applyRemote(snap.data()))setSync("saved")},function(){setSync("error")});
   paintAcc();recompute();renderRules();renderLeague();renderSquad();run()}
 function login(){
   if(!BK){toast("No se pudo cargar el inicio de sesión. Revisa tu conexión e inténtalo de nuevo.");return}
@@ -1270,15 +1274,17 @@ function cashOf(tm){
   return rnd1(c)}
 function editBlock(kind){
   if(!myTeam)return null;
-  if(fichOpen())return null;
+  if(fichOpen())return (!ref||!trCol)?"Inicia sesión para fichar: sin sesión el movimiento no se guarda.":null;
   if(sq.status==="entregada")return "Tu plantilla está entregada. Deshaz la entrega para editarla.";
   if(marketClosed())return "El mercado está cerrado.";
   return null}
 function trId(pfx){return pfx+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36)}
-function trSet(doc){var id=trId(doc.kind==="oferta"?"o":"t");doc.win=LG.fich.at;doc.ts=Date.now();LG.tr[id]=doc;
-  if(trCol)trCol.doc(id).set(doc).catch(function(){delete LG.tr[id];renderLeague();toast("No se pudo registrar el movimiento.")});return id}
-function afterAdd(p){if(fichOpen()&&myTeam&&p){trSet({kind:"fichaje",team:myTeam,player:p.id,amount:p.k||0});renderLeague()}}
-function afterRemove(p){if(fichOpen()&&myTeam&&p){trSet({kind:"libre",team:myTeam,player:p.id,amount:saleValue(p)});renderLeague();toast(p.n+" vendido al club: entran "+fmtM(saleValue(p))+" M.")}}
+function trSet(doc,onFail){var id=trId(doc.kind==="oferta"?"o":"t");doc.win=LG.fich.at;doc.ts=Date.now();LG.tr[id]=doc;
+  if(trCol)trCol.doc(id).set(doc).catch(function(){delete LG.tr[id];if(onFail)onFail();else{renderLeague();toast("No se pudo registrar el movimiento.")}});return id}
+function dropFromSq(id){for(var i=0;i<sq.s.length;i++)if(sq.s[i]===id)sq.s[i]=null;for(var j=0;j<sq.bench.length;j++)if(sq.bench[j]===id)sq.bench[j]=null;if(sq.ts)delete sq.ts[id]}
+function putInSq(p){var S=FORM[sq.form],L=lu(),i=-1,k;for(k=0;k<S.length;k++)if(!L[k]&&S[k][0]===p.p){i=k;break}if(i<0)for(k=0;k<S.length;k++)if(!L[k]&&compat(p,S[k][0])){i=k;break}if(i>=0){L[i]=p.id;return true}for(k=0;k<NB;k++)if(!sq.bench[k]){sq.bench[k]=p.id;return true}return false}
+function afterAdd(p){if(fichOpen()&&myTeam&&p){trSet({kind:"fichaje",team:myTeam,player:p.id,amount:p.k||0},function(){dropFromSq(p.id);sqSave();renderSquad();renderLeague();toast("No se pudo registrar el fichaje de "+p.n+": se canceló y no se descontó dinero.")});renderLeague()}}
+function afterRemove(p){if(fichOpen()&&myTeam&&p){trSet({kind:"libre",team:myTeam,player:p.id,amount:saleValue(p)},function(){putInSq(p);sqSave();renderSquad();renderLeague();toast("No se pudo registrar la venta de "+p.n+": volvió a tu plantilla.")});renderLeague();toast(p.n+" vendido al club: entran "+fmtM(saleValue(p))+" M.")}}
 function fmtLeft(ms){var m=Math.max(0,Math.floor(ms/60000)),d=Math.floor(m/1440),h=Math.floor(m%1440/60),mi=m%60;return d?d+" d "+h+" h":h?h+" h "+mi+" min":mi+" min"}
 function updateMbar(){
   var el=$("mbar");el.hidden=false;
@@ -1662,8 +1668,10 @@ function toggleFich(){
   if(fichOpen()){fichRef.set({open:false,at:LG.fich.at,base:LG.fich.base,prizes:LG.fich.prizes||{},season:LG.fich.season||0}).then(function(){LG.fich.open=false;renderLeague();toast("Fichajes cerrados.")},function(){toast("No se pudo cerrar.")});return}
   var base=squadBase();
   var at=Date.now(),PL=prizePlan(),pz={};
-  if(PL.ready){var pm=PL.map;ACT.forEach(function(tm){if(pm[tm]){pz[tm]=pm[tm];base[tm]=rnd1((+base[tm]||0)+pm[tm])}})}
-  fichRef.set({open:true,at:at,base:base,prizes:pz,season:curSeason()}).then(function(){LG.fich={open:true,at:at,base:base,prizes:pz,season:curSeason()};renderLeague();toast(Object.keys(pz).length?"Fichajes abiertos. Se pagaron los premios de la temporada.":"Fichajes abiertos. Sin premios: la temporada no terminó.")},function(){toast("No se pudo abrir.")})}
+  var pm=PL.ready?PL.map:((LG.fich.season||0)===curSeason()-1?(LG.fich.prizes||{}):{});
+  ACT.forEach(function(tm){if(+pm[tm]>0){pz[tm]=+pm[tm];base[tm]=rnd1((+base[tm]||0)+pm[tm])}});
+  var fs=(!PL.ready&&Object.keys(pz).length)?(LG.fich.season||0):curSeason();
+  fichRef.set({open:true,at:at,base:base,prizes:pz,season:fs}).then(function(){LG.fich={open:true,at:at,base:base,prizes:pz,season:fs};renderLeague();toast(Object.keys(pz).length?"Fichajes abiertos. Premios de la temporada incluidos.":"Fichajes abiertos. Sin premios: la temporada no terminó.")},function(){toast("No se pudo abrir.")})}
 function db_pub_delete(u){if(squadsCol)squadsCol.doc(u).delete().catch(function(){})}
 function saveMarket(m,msg){if(!mktRef){toast("Inicia sesión para cambiar el mercado.");return}
   mktRef.set({closed:!!m.closed,deadline:m.deadline||null}).then(function(){LG.market=cleanMarket(m);renderLeague();toast(msg)},function(){toast("No se pudo guardar el mercado.")})}
