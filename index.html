@@ -467,7 +467,7 @@ body.isdrag{cursor:grabbing;user-select:none;-webkit-user-select:none}body.isdra
   .seg{display:none}
   .bar-in{min-height:52px;padding-block:6px;gap:10px;flex-wrap:nowrap}
   .brand span{display:none}.brand .logo{height:34px}
-  body.sub .brand{display:none}
+  body.insub .brand{display:none}
   .appback{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;border:0;background:var(--surface2);color:var(--fg);cursor:pointer;margin-left:-4px}.appback[hidden]{display:none}
   .apptitle{display:block;font-weight:800;font-size:17px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .accbtn{padding:3px;border-radius:50%}.accbtn #acctxt,.accbtn .dot{display:none}.accbtn .av{width:32px;height:32px}
@@ -1374,7 +1374,7 @@ function appShell(v,prev){
   [].forEach.call(document.querySelectorAll(".tbb"),function(b){b.setAttribute("aria-pressed",b.dataset.v===v)});
   var main=TABV.indexOf(v)>-1;moveInd(main?v:"");
   $("apptitle").textContent=TITLES2[v]||"NG League";
-  $("appback").hidden=main;document.body.classList.toggle("sub",!main);
+  $("appback").hidden=main;document.body.classList.toggle("insub",!main);
   var el=$(VIEWS[v]);
   if(el&&prev!==v&&el.animate&&!matchMedia("(prefers-reduced-motion:reduce)").matches){
     var dir=ORDER.indexOf(v)>=ORDER.indexOf(prev)?1:-1;
