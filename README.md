@@ -1,6 +1,6 @@
 # NG League
 
-Página de la liga de PES NG League: base de jugadores, plantillas con presupuesto, plantillas de todos, liga (calendario, tabla, goleadores), fichajes y préstamos entre temporadas, red de noticias de los clubes, cuotas de los partidos, apuestas con puntos ficticios, playoffs (6 clasificados), premios individuales, clásicos y perfil de cada club, temporadas con historial y cierre de temporada, e historia de los clubes.
+Página de la liga de PES NG League: base de jugadores, plantillas con presupuesto, plantillas de todos, liga (calendario, tabla, goleadores), fichajes y préstamos entre temporadas, red de noticias de los clubes, cuotas de los partidos, apuestas con puntos ficticios, playoffs (6 clasificados), premios individuales, clásicos y perfil de cada club, temporadas con historial y cierre de temporada, historia de los clubes y copias de seguridad.
 
 - `index.html`: la página completa, lista para publicar (GitHub Pages).
 - `src/template.html`: código fuente de la página. `src/build.py` la arma con los datos de jugadores.
